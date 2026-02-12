@@ -1,11 +1,17 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install dev dev-local tui test lint lint-fix typecheck typecheck-tui \
+.PHONY: help install start stop dev dev-local tui test lint lint-fix typecheck typecheck-tui \
         docker-build docker-build-orchestrator docker-build-agent clean format
 
 help: ## Show available targets with descriptions
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2}'
+
+start: ## Start all services (Docker mode). Use START_ARGS for flags (e.g. make start START_ARGS="--dev")
+	./start.sh $(START_ARGS)
+
+stop: ## Stop all running Duckling services
+	./start.sh --stop
 
 install: ## Install the project in editable mode with dev extras
 	pip install -e ".[dev]"
