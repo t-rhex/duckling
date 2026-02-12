@@ -87,8 +87,8 @@ That's it. The start script builds images, compiles the dashboard, and launches 
 ### Submit a mission
 
 ```bash
-# Via the web dashboard
-open http://localhost:8000       # Click "New Mission" on the Missions page
+# Via the web dashboard — open http://localhost:8000
+# Click "New Mission" on the Missions page
 
 # Via CLI
 python scripts/duckling-cli.py submit \
