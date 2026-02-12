@@ -83,6 +83,39 @@ curl -X POST http://localhost:8000/api/tasks \
   -d '{"description": "Fix the flaky test", "repo_url": "https://github.com/your-org/your-repo"}'
 ```
 
+## Web Dashboard
+
+Duckling includes a web dashboard built with Next.js 16, React 19, shadcn/ui, and Tailwind CSS v4. It provides a full-featured UI for managing tasks, monitoring agent execution, and reviewing results.
+
+### Features
+
+- **Dashboard home** -- stat cards, recent tasks, pool health at a glance
+- **Task list** -- paginated table with status, mode, priority, duration
+- **New task form** -- submit tasks with repo URL, branch, mode, priority, iterations, timeout
+- **Task detail** -- live agent log viewer (terminal style), review output markdown renderer, status timeline, metadata sidebar
+- **Pool health** -- VM grid visualization with container states
+- **Light/dark theme** -- toggle with system preference detection
+- **Real-time updates** -- WebSocket integration for live task monitoring
+
+### Building the Dashboard
+
+```bash
+cd dashboard
+npm install
+npm run build        # Outputs static files to dashboard/out/
+```
+
+The static export is served by the FastAPI orchestrator -- no Node.js server needed in production. When running via Docker Compose, the `dashboard/out/` directory is volume-mounted and served at the root URL (http://localhost:8000/).
+
+### Development
+
+```bash
+cd dashboard
+npm run dev          # Starts dev server on http://localhost:3000
+```
+
+The dev server proxies API calls to the orchestrator at `http://localhost:8000`.
+
 ## The Agent Pipeline
 
 Two modes, automatically classified by the intent engine:
@@ -131,7 +164,7 @@ Phase 2 -- AI-Powered Review:
 | `gui/` | Desktop app built with Tauri + SolidJS (experimental) |
 | `mcp_toolshed/` | MCP tool server for agent extensions |
 | `ast_grep_rules/` | AST-based security scanning rules |
-| `dashboard/` | Static web monitoring dashboard |
+| `dashboard/` | Next.js 16 + shadcn/ui web dashboard (static export) |
 | `demo_repo/` | Example repo with intentional bugs for testing |
 | `scripts/` | CLI tool |
 | `tests/` | Test suite (70+ tests) |

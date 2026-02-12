@@ -17,7 +17,6 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 
 from git_integration.git_manager import GitManager
 from orchestrator.api.routes import broadcast_task_update, router, set_dependencies
@@ -141,11 +140,15 @@ def create_app() -> FastAPI:
     # API routes
     app.include_router(router)
 
-    # Static files for dashboard
+    # Static files for the Next.js dashboard (built to dashboard/out/)
     try:
-        app.mount("/static", StaticFiles(directory="dashboard/static"), name="static")
+        app.mount(
+            "/",
+            StaticFiles(directory="dashboard/out", html=True),
+            name="dashboard",
+        )
     except Exception:
-        pass  # Static files may not exist yet
+        pass  # Dashboard build may not exist yet
 
     return app
 

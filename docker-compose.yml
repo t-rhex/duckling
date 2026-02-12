@@ -34,7 +34,7 @@ services:
       - OPENCODE_ZEN_API_KEY=${OPENCODE_ZEN_API_KEY:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./dashboard/static:/app/dashboard/static
+      - ./dashboard/out:/app/dashboard/out
     depends_on:
       - redis
     networks:
