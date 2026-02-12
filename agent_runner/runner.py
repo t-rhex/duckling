@@ -1168,6 +1168,15 @@ Perform a thorough code review. For each file changed:
 
 Also read the actual files for context — the diff alone may not show the full picture.
 Use commands like `cat /workspace/repo/<file>` to see the full file context around changes.
+
+IMPORTANT — Verifying factual claims:
+If the diff includes documentation changes (README, docs, comments) that contain numeric
+claims or factual assertions (e.g., test counts, file counts, version numbers, performance
+metrics), you MUST verify them by running the appropriate commands in the repository. Examples:
+- Test count claims → run: python -m pytest --collect-only -q 2>/dev/null | tail -1
+- File count claims → run: find /workspace/repo -type f -name '*.py' | wc -l
+- Dependency count claims → check the actual manifest files
+Do NOT guess or estimate numeric values. Either verify them or state that you could not verify.
 """
         success, output = await self.engine.execute_prompt(prompt, timeout=300)
         return StepResult(
@@ -1192,6 +1201,10 @@ For each issue:
 - **[SEVERITY]** `file:line` — Description of the issue and suggested fix
 
 Severity levels: CRITICAL (must fix), WARNING (should fix), SUGGESTION (nice to have)
+
+IMPORTANT: Only report issues you have actually verified. If you claim a number is wrong
+(e.g., "test count is inaccurate"), you must have run a command to confirm the actual value.
+Do not guess or estimate — either verify with a command or omit the claim.
 
 ## What Looks Good
 Highlight things done well — good patterns, clean code, proper testing.
