@@ -29,6 +29,9 @@ services:
       - OPENAI_HOST=${OPENAI_HOST:-https://openrouter.ai/api/}
       - GOOSE_PROVIDER=${GOOSE_PROVIDER:-openai}
       - GOOSE_MODEL=${GOOSE_MODEL:-deepseek/deepseek-chat-v3-0324}
+      - AGENT_BACKEND=${AGENT_BACKEND:-opencode}
+      - OPENCODE_MODEL=${OPENCODE_MODEL:-}
+      - OPENCODE_ZEN_API_KEY=${OPENCODE_ZEN_API_KEY:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./dashboard/static:/app/dashboard/static

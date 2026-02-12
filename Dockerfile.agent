@@ -2,7 +2,8 @@
 # Duckling — Agent Runner VM Image
 # ============================================
 # This is the Docker image that runs inside "VMs" (containers in demo mode).
-# It comes pre-loaded with Goose, Python, git, and comprehensive dev/review tools.
+# It comes pre-loaded with OpenCode (or Goose), Python, git, and comprehensive
+# dev/review tools.
 
 FROM python:3.12-slim
 
@@ -29,7 +30,7 @@ RUN ARCH=$(uname -m) && \
     curl -fsSL "https://github.com/boyter/scc/releases/download/v3.5.0/scc_Linux_${SCC_ARCH}.tar.gz" \
     | tar xz -C /usr/local/bin/ scc
 
-# Install Node.js (for JS/TS repo support)
+# Install Node.js (for JS/TS repo support + OpenCode)
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
@@ -47,10 +48,19 @@ RUN pip install --no-cache-dir \
     pydantic \
     bandit
 
-# Install Goose (Block's open-source coding agent)
+# ── OpenCode (primary agent engine) ─────────────────────────
+# Install OpenCode — the open-source coding agent by SST/Anomaly
+RUN curl -fsSL https://opencode.ai/install | bash \
+    || npm install -g opencode-ai \
+    || echo "OpenCode install failed, will rely on Goose fallback"
+
+# Add OpenCode to PATH (installer puts it in ~/.opencode/bin/)
+ENV PATH="/root/.opencode/bin:${PATH}"
+
+# ── Goose (legacy/fallback agent engine) ─────────────────────
 # Pin langfuse<3 because ai-exchange 0.9.x imports langfuse.decorators (removed in 3.x)
 RUN pip install --no-cache-dir "langfuse>=2.0,<3.0" && \
-    pip install --no-cache-dir goose-ai 2>/dev/null || echo "Goose not available via pip, will use CLI"
+    pip install --no-cache-dir goose-ai 2>/dev/null || echo "Goose not available via pip"
 
 # Install pipx + goose CLI (alternative install method)
 RUN pip install --no-cache-dir pipx && \
@@ -61,6 +71,10 @@ RUN mkdir -p /workspace/repo /workspace/review /workspace/ast-grep-rules
 
 # Copy default ast-grep security rules
 COPY ast_grep_rules/ /workspace/ast-grep-rules/
+
+# Copy OpenCode configuration (headless mode, all permissions granted)
+COPY container-config/opencode.json /workspace/opencode.json
+COPY container-config/AGENTS.md /workspace/AGENTS.md
 
 # Git config
 RUN git config --global user.email "duckling@users.noreply.github.com" && \

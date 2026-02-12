@@ -115,12 +115,17 @@ class TaskPipeline:
                 await logger.aerror("Review run failed", task_id=task.id, error=result.error)
                 return task
 
-            # Extract the review output from the last analyze step
+            # Extract the review output — prefer the REPORT step, fall back to last step with output
             review_text = ""
-            for step in reversed(result.steps):
-                if step.output:
+            for step in result.steps:
+                if step.step.value == "report" and step.output:
                     review_text = step.output
                     break
+            if not review_text:
+                for step in reversed(result.steps):
+                    if step.output:
+                        review_text = step.output
+                        break
 
             task.mark_review_completed(review_text)
 
@@ -196,12 +201,17 @@ class TaskPipeline:
                 await logger.aerror("Peer review failed", task_id=task.id, error=result.error)
                 return task
 
-            # Extract feedback from the last step
+            # Extract feedback — prefer the REPORT step, fall back to last step with output
             review_text = ""
-            for step in reversed(result.steps):
-                if step.output:
+            for step in result.steps:
+                if step.step.value == "report" and step.output:
                     review_text = step.output
                     break
+            if not review_text:
+                for step in reversed(result.steps):
+                    if step.output:
+                        review_text = step.output
+                        break
 
             task.mark_review_completed(review_text)
 

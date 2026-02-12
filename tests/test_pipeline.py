@@ -18,7 +18,7 @@ class TestTaskPipelineConfig:
     def test_settings_agent_backend(self):
         """Test that the agent_backend setting exists and has a valid default."""
         settings = get_settings()
-        assert settings.agent_backend in ("goose", "copilot")
+        assert settings.agent_backend in ("opencode", "goose", "copilot")
 
     def test_pr_title_generation(self):
         """Test that PR titles are properly formatted."""

@@ -45,8 +45,8 @@ Duckling supports dual modes, automatically classified by its intent engine: **C
             |
             v
     +---------------+
-    |  AGENT RUNNER  |  Goose agent loop inside the container
-    |  (Goose)       |  9-step pipeline: setup > analyze > plan > code > lint > test > repair > commit > PR
+    |  AGENT RUNNER  |  AI agent loop inside the container (OpenCode / Goose / Copilot)
+    |  (OpenCode)    |  9-step pipeline: setup > analyze > plan > code > lint > test > repair > commit > PR
     +-------+-------+
             |
             v
@@ -124,7 +124,7 @@ Phase 2 -- AI-Powered Review:
 |-----------|-------------|
 | `orchestrator/` | FastAPI service -- REST API, WebSocket, task queue, intent classifier |
 | `warm_pool/` | Container lifecycle manager (Firecracker + Docker backends) |
-| `agent_runner/` | Goose agent loop with 9-step code and review pipelines |
+| `agent_runner/` | AI agent loop (OpenCode, Goose, Copilot) with 9-step code and review pipelines |
 | `git_integration/` | GitHub + Bitbucket abstraction layer |
 | `slack_bot/` | Slack bot with slash commands and mentions |
 | `tui/` | Terminal UI built with Bun + OpenTUI |
@@ -151,24 +151,33 @@ WS     /ws/tasks/{id}        Real-time task updates via WebSocket
 
 ## Configuration
 
-Duckling works with any OpenAI-compatible LLM provider. Set these in your `.env`:
+Duckling uses [OpenCode](https://opencode.ai) as its default agent engine, which supports 75+ LLM providers. Set these in your `.env`:
 
 ```bash
-# Option 1: OpenRouter (recommended -- access to many models)
+# Agent engine (default: opencode)
+AGENT_BACKEND=opencode
+
+# Option 1: OpenCode Zen (curated models, some free — no API key needed)
+OPENCODE_ZEN_API_KEY=your-zen-key
+OPENCODE_MODEL=opencode/big-pickle           # Free (limited time)
+OPENCODE_MODEL=opencode/kimi-k2.5-free       # Free (limited time)
+OPENCODE_MODEL=opencode/claude-sonnet-4-5    # Paid via Zen
+
+# Option 2: OpenRouter (access to many models)
 OPENAI_API_KEY=sk-or-v1-your-key
 OPENAI_HOST=https://openrouter.ai/api/
-GOOSE_MODEL=deepseek/deepseek-chat-v3-0324
+OPENCODE_MODEL=deepseek/deepseek-chat-v3-0324
 
-# Option 2: Anthropic
+# Option 3: Direct Anthropic
 ANTHROPIC_API_KEY=sk-ant-your-key
-GOOSE_MODEL=claude-sonnet-4-5-20250929
+OPENCODE_MODEL=anthropic/claude-sonnet-4-5
 
-# Option 3: OpenAI
+# Option 4: Direct OpenAI
 OPENAI_API_KEY=sk-your-key
-GOOSE_MODEL=gpt-4o
+OPENCODE_MODEL=openai/gpt-4o
 ```
 
-See `.env.example` for all configuration options.
+Legacy engines (Goose, GitHub Copilot SDK) are still supported by setting `AGENT_BACKEND=goose` or `AGENT_BACKEND=copilot`. See `.env.example` for all configuration options.
 
 ## Development
 

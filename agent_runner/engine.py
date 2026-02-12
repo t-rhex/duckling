@@ -66,5 +66,11 @@ def create_engine(engine_name: str) -> AgentEngine:
         from agent_runner.copilot.copilot_engine import CopilotEngine
 
         return CopilotEngine()
+    elif engine_name == "opencode":
+        from agent_runner.opencode.opencode_engine import OpenCodeEngine
+
+        return OpenCodeEngine()
     else:
-        raise ValueError(f"Unknown agent engine: {engine_name!r}. Use 'goose' or 'copilot'.")
+        raise ValueError(
+            f"Unknown agent engine: {engine_name!r}. Use 'goose', 'copilot', or 'opencode'."
+        )

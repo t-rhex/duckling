@@ -88,6 +88,8 @@ class DockerBackend(VMBackendDriver):
                     "OPENAI_HOST": settings.openai_host,
                     "GOOSE_MODEL": settings.goose_model,
                     "GOOSE_PROVIDER": settings.goose_provider,
+                    "OPENCODE_MODEL": settings.opencode_model,
+                    "OPENCODE_ZEN_API_KEY": settings.opencode_zen_api_key,
                 },
                 labels={
                     "duckling.vm_id": vm.id,
@@ -119,6 +121,7 @@ class DockerBackend(VMBackendDriver):
         if vm.container_id:
             docker_client = self._get_docker()
             try:
+
                 def _destroy():
                     container = docker_client.containers.get(vm.container_id)
                     container.stop(timeout=5)

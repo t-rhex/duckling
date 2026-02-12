@@ -44,9 +44,13 @@ class Settings(BaseModel):
     bitbucket_workspace: str = os.getenv("BITBUCKET_WORKSPACE", "")
 
     # Agent Backend Selection
-    agent_backend: str = os.getenv("AGENT_BACKEND", "goose")  # "goose" or "copilot"
+    agent_backend: str = os.getenv("AGENT_BACKEND", "opencode")  # "opencode", "goose", or "copilot"
 
-    # Goose Agent
+    # OpenCode Agent (recommended — supports 75+ models, free models via Zen)
+    opencode_model: str = os.getenv("OPENCODE_MODEL", "")
+    opencode_zen_api_key: str = os.getenv("OPENCODE_ZEN_API_KEY", "")
+
+    # Goose Agent (legacy)
     goose_provider: str = os.getenv("GOOSE_PROVIDER", "openai")
     goose_model: str = os.getenv("GOOSE_MODEL", "deepseek/deepseek-chat-v3-0324")
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
