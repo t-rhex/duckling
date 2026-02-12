@@ -1,0 +1,9 @@
+id: js-no-var
+language: javascript
+message: "SUGGESTION: Use const or let instead of var"
+severity: hint
+rule:
+  kind: variable_declaration
+  has:
+    field: kind
+    regex: "^var$"

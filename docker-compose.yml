@@ -1,0 +1,60 @@
+# ============================================
+# Duckling — Docker Compose (Demo Mode)
+# ============================================
+# Spins up the full platform locally for demo/development.
+# Firecracker is replaced by Docker containers.
+
+version: "3.9"
+
+services:
+  # ── Orchestrator (FastAPI) ──────────────────────────────
+  orchestrator:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DUCKLING_ENV=development
+      - USE_DOCKER_FALLBACK=true
+      - DOCKER_IMAGE=duckling/agent-runner:latest
+      - DOCKER_NETWORK=duckling_duckling-net
+      - WARM_POOL_SIZE=2
+      - REDIS_URL=redis://redis:6379/0
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN:-}
+      - SLACK_SIGNING_SECRET=${SLACK_SIGNING_SECRET:-}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - BITBUCKET_USERNAME=${BITBUCKET_USERNAME:-}
+      - BITBUCKET_APP_PASSWORD=${BITBUCKET_APP_PASSWORD:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_HOST=${OPENAI_HOST:-https://openrouter.ai/api/}
+      - GOOSE_PROVIDER=${GOOSE_PROVIDER:-openai}
+      - GOOSE_MODEL=${GOOSE_MODEL:-deepseek/deepseek-chat-v3-0324}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./dashboard/static:/app/dashboard/static
+    depends_on:
+      - redis
+    networks:
+      - duckling-net
+
+  # ── Redis (task queue + pub/sub) ─────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    networks:
+      - duckling-net
+
+  # ── Agent Runner (pre-built image for warm pool) ────────
+  # This image is used to spawn containers that act as "VMs"
+  agent-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    image: duckling/agent-runner:latest
+    profiles:
+      - build-only  # Don't start this as a service, just build the image
+
+networks:
+  duckling-net:
+    driver: bridge

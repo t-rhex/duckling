@@ -1,0 +1,6 @@
+id: js-eval-usage
+language: javascript
+message: "CRITICAL: eval() is dangerous and can lead to code injection"
+severity: error
+rule:
+  pattern: eval($$$ARGS)

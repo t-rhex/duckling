@@ -1,0 +1,6 @@
+id: ts-any-type
+language: typescript
+message: "WARNING: Avoid using 'any' type - use proper typing instead"
+severity: warning
+rule:
+  pattern: "$$$: any"

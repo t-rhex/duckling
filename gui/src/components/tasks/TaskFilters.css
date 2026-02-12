@@ -1,0 +1,26 @@
+.task-filters {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.task-filter-select {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.task-filter-select:hover {
+  border-color: var(--text-muted);
+}
+
+.task-filter-select:focus {
+  border-color: var(--accent-blue);
+}

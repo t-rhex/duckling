@@ -1,0 +1,15 @@
+.vm-slot {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  transition: all var(--transition);
+  position: relative;
+}
+
+.vm-slot:hover {
+  transform: scale(1.08);
+}
+
+.vm-slot.active {
+  animation: pulse 2s infinite;
+}

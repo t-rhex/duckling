@@ -1,0 +1,72 @@
+# ============================================
+# Duckling — Agent Runner VM Image
+# ============================================
+# This is the Docker image that runs inside "VMs" (containers in demo mode).
+# It comes pre-loaded with Goose, Python, git, and comprehensive dev/review tools.
+
+FROM python:3.12-slim
+
+# System deps for development + review tooling
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    openssh-client \
+    build-essential \
+    jq \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install ripgrep (for fast code search) — architecture-aware tarball
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "aarch64" ]; then RG_ARCH="aarch64-unknown-linux-gnu"; \
+    else RG_ARCH="x86_64-unknown-linux-musl"; fi && \
+    curl -fsSL "https://github.com/BurntSushi/ripgrep/releases/download/15.1.0/ripgrep-15.1.0-${RG_ARCH}.tar.gz" \
+    | tar xz --strip-components=1 -C /usr/local/bin/ "ripgrep-15.1.0-${RG_ARCH}/rg"
+
+# Install scc (for code statistics) — replaces tokei which lacks pre-built binaries
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "aarch64" ]; then SCC_ARCH="arm64"; \
+    else SCC_ARCH="amd64"; fi && \
+    curl -fsSL "https://github.com/boyter/scc/releases/download/v3.5.0/scc_Linux_${SCC_ARCH}.tar.gz" \
+    | tar xz -C /usr/local/bin/ scc
+
+# Install Node.js (for JS/TS repo support)
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install ast-grep (for AST-based security scanning)
+RUN npm install -g --force @ast-grep/cli@0.38.5
+
+# Install common Python dev tools
+RUN pip install --no-cache-dir \
+    ruff \
+    pytest \
+    httpx \
+    fastapi \
+    uvicorn \
+    pydantic \
+    bandit
+
+# Install Goose (Block's open-source coding agent)
+# Pin langfuse<3 because ai-exchange 0.9.x imports langfuse.decorators (removed in 3.x)
+RUN pip install --no-cache-dir "langfuse>=2.0,<3.0" && \
+    pip install --no-cache-dir goose-ai 2>/dev/null || echo "Goose not available via pip, will use CLI"
+
+# Install pipx + goose CLI (alternative install method)
+RUN pip install --no-cache-dir pipx && \
+    pipx ensurepath || true
+
+# Create workspace directories
+RUN mkdir -p /workspace/repo /workspace/review /workspace/ast-grep-rules
+
+# Copy default ast-grep security rules
+COPY ast_grep_rules/ /workspace/ast-grep-rules/
+
+# Git config
+RUN git config --global user.email "duckling@users.noreply.github.com" && \
+    git config --global user.name "Duckling"
+
+WORKDIR /workspace
+
+# Keep container running
+CMD ["tail", "-f", "/dev/null"]

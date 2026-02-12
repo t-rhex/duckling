@@ -1,0 +1,6 @@
+id: python-assert-in-prod
+language: python
+message: "SUGGESTION: assert statements are removed with python -O, use proper error handling"
+severity: hint
+rule:
+  kind: assert_statement

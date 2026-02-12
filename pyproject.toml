@@ -1,0 +1,63 @@
+[project]
+name = "duckling"
+version = "0.1.0"
+description = "Duckling — autonomous coding agent platform (inspired by Stripe Minions)"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+authors = [
+    { name = "Duckling Contributors" },
+]
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.6.0",
+    "httpx>=0.27.0",
+    "docker>=7.0.0",
+    "slack-bolt>=1.18.0",
+    "slack-sdk>=3.27.0",
+    "jinja2>=3.1.3",
+    "python-dotenv>=1.0.0",
+    "structlog>=24.1.0",
+    "rich>=13.7.0",
+    "websockets>=12.0",
+    "pyyaml>=6.0.1",
+    "github-copilot-sdk>=0.1.0",
+    "aiohttp>=3.9.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/t-rhex/duckling"
+Repository = "https://github.com/t-rhex/duckling"
+Issues = "https://github.com/t-rhex/duckling/issues"
+Documentation = "https://github.com/t-rhex/duckling#readme"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.2.0",
+    "mypy>=1.8.0",
+    "httpx>=0.27.0",
+]
+
+[tool.setuptools.packages.find]
+include = [
+    "orchestrator*",
+    "agent_runner*",
+    "git_integration*",
+    "mcp_toolshed*",
+    "slack_bot*",
+    "warm_pool*",
+    "dashboard*",
+    "configs*",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

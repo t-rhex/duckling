@@ -1,0 +1,9 @@
+id: python-sql-injection
+language: python
+message: "CRITICAL: Potential SQL injection - use parameterized queries instead"
+severity: error
+rule:
+  any:
+    - pattern: cursor.execute(f"$$$SQL")
+    - pattern: cursor.execute("$$$SQL" % $$$ARGS)
+    - pattern: cursor.execute("$$$SQL".format($$$ARGS))

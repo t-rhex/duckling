@@ -1,0 +1,6 @@
+id: python-eval-usage
+language: python
+message: "WARNING: Use of eval() is dangerous - consider safer alternatives"
+severity: warning
+rule:
+  pattern: eval($$$ARGS)

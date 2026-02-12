@@ -1,0 +1,6 @@
+id: js-console-log
+language: javascript
+message: "SUGGESTION: Remove console.log before production"
+severity: hint
+rule:
+  pattern: console.log($$$ARGS)
