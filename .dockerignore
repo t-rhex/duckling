@@ -1,0 +1,46 @@
+# Dependencies and build artifacts
+node_modules/
+dashboard/node_modules/
+dashboard/.next/
+dashboard/out/
+tui/node_modules/
+gui/node_modules/
+gui/target/
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+Dockerfile.agent
+docker-compose.yml
+
+# Env files (secrets)
+.env
+.env.local
+
+# Misc
+LICENSE
+.github/
+demo_repo/
+README.md
+CONTRIBUTING.md
+CHANGELOG.md

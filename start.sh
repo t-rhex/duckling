@@ -106,6 +106,15 @@ stop_all() {
         ok "Stopped standalone Redis container"
     fi
 
+    # Clean up orphaned warm pool containers (created by the orchestrator, not docker compose)
+    ORPHANED=$(docker ps -q --filter "name=duckling-vm-" 2>/dev/null)
+    if [[ -n "$ORPHANED" ]]; then
+        echo "$ORPHANED" | xargs docker stop >/dev/null 2>&1
+        echo "$ORPHANED" | xargs docker rm >/dev/null 2>&1
+        ORPHAN_COUNT=$(echo "$ORPHANED" | wc -l | tr -d ' ')
+        ok "Cleaned up $ORPHAN_COUNT orphaned warm pool container(s)"
+    fi
+
     ok "All services stopped"
 }
 
@@ -241,6 +250,56 @@ if ! $SKIP_BUILD; then
 else
     step "Skipping builds (--skip-build)"
     ok "Using existing images and dashboard build"
+fi
+
+# ── Port conflict check ───────────────────────────────────────
+step "Checking for port conflicts"
+
+check_port() {
+    local port=$1
+    local in_use=false
+    local proc_info=""
+
+    # Method 1: lsof (catches most cases on macOS/Linux)
+    local pid=""
+    pid=$(lsof -i :"$port" -sTCP:LISTEN -P -n -t 2>/dev/null | head -1) || true
+    if [[ -n "$pid" ]]; then
+        in_use=true
+        local procname=""
+        procname=$(ps -p "$pid" -o comm= 2>/dev/null) || true
+        proc_info="${procname:-unknown} (PID $pid)"
+    fi
+
+    # Method 2: try to bind (catches edge cases lsof misses, e.g. IPv6-only listeners)
+    if ! $in_use && command -v python3 &>/dev/null; then
+        local bind_result=0
+        python3 -c "
+import socket, sys
+try:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(1)
+    s.bind(('0.0.0.0', $port))
+    s.close()
+except OSError:
+    sys.exit(1)
+" 2>/dev/null || bind_result=$?
+        if [[ "$bind_result" -ne 0 ]]; then
+            in_use=true
+            proc_info="${proc_info:-unknown process}"
+        fi
+    fi
+
+    if $in_use; then
+        fail "Port $port is already in use by $proc_info. Stop it first or run: ./start.sh --stop"
+    fi
+}
+
+check_port 8000 "orchestrator"
+ok "Port 8000 is available"
+
+if $DASHBOARD_DEV; then
+    check_port 3000 "dashboard"
+    ok "Port 3000 is available"
 fi
 
 # ── Start services ────────────────────────────────────────────

@@ -4,8 +4,6 @@
 # Spins up the full platform locally for demo/development.
 # Firecracker is replaced by Docker containers.
 
-version: "3.9"
-
 services:
   # ── Orchestrator (FastAPI) ──────────────────────────────
   orchestrator:
