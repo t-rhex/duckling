@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation"
 import {
   LayoutDashboard,
   ListTodo,
-  PlusCircle,
   Server,
   Menu,
 } from "lucide-react"
@@ -22,9 +21,8 @@ import {
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/tasks", label: "Tasks", icon: ListTodo },
-  { href: "/tasks/new", label: "New Task", icon: PlusCircle },
-  { href: "/pool", label: "Pool", icon: Server },
+  { href: "/tasks", label: "Missions", icon: ListTodo },
+  { href: "/pool", label: "Fleet", icon: Server },
 ] as const
 
 function Logo({ collapsed = false }: { collapsed?: boolean }) {
@@ -125,12 +123,6 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
     return pathname === href || pathname.startsWith(href + "/")
   }
 
-  // Special case: /tasks/new should not highlight /tasks
-  const isItemActive = (href: string) => {
-    if (href === "/tasks" && pathname === "/tasks/new") return false
-    return isActive(href)
-  }
-
   return (
     <div className={cn("flex h-full flex-col", collapsed ? "w-14" : "w-60")}>
       {/* Logo */}
@@ -154,7 +146,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
             href={item.href}
             label={item.label}
             icon={item.icon}
-            isActive={isItemActive(item.href)}
+            isActive={isActive(item.href)}
             collapsed={collapsed}
           />
         ))}

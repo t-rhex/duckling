@@ -56,7 +56,7 @@ export function PoolMini({ stats }: PoolMiniProps) {
     <Card className="card-hover">
       <CardHeader className="pb-3">
         <CardTitle className="text-[11px] font-mono font-medium uppercase tracking-widest text-muted-foreground">
-          WARM POOL
+          FLEET STATUS
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">

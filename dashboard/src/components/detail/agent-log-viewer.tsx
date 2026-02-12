@@ -77,19 +77,36 @@ export function AgentLogViewer({ log, isLive = false }: AgentLogViewerProps) {
         />
 
         <div className="relative z-0 p-4 font-mono text-xs leading-relaxed">
-          {lines.map((line, i) => (
-            <div key={i} className="flex">
-              <span
-                className="select-none pr-4 text-right text-zinc-600"
-                style={{ minWidth: `${lineNumberWidth + 1}ch` }}
-              >
-                {i + 1}
-              </span>
-              <span className="whitespace-pre-wrap break-all text-green-400/90">
-                {line}
-              </span>
+          {log.trim() === "" ? (
+            <div className="flex items-center justify-center h-32">
+              {isLive ? (
+                <div className="flex items-center gap-2">
+                  <span className="status-dot-pulse h-2 w-2 rounded-full bg-[var(--duckling-amber)]" />
+                  <span className="text-zinc-500 uppercase tracking-wider text-[10px]">
+                    Waiting for agent output...
+                  </span>
+                </div>
+              ) : (
+                <span className="text-zinc-600 uppercase tracking-wider text-[10px]">
+                  No log output recorded
+                </span>
+              )}
             </div>
-          ))}
+          ) : (
+            lines.map((line, i) => (
+              <div key={i} className="flex">
+                <span
+                  className="select-none pr-4 text-right text-zinc-600"
+                  style={{ minWidth: `${lineNumberWidth + 1}ch` }}
+                >
+                  {i + 1}
+                </span>
+                <span className="whitespace-pre-wrap break-all text-green-400/90">
+                  {line}
+                </span>
+              </div>
+            ))
+          )}
         </div>
       </ScrollArea>
 

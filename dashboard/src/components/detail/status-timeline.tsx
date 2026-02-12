@@ -3,6 +3,7 @@
 import type { TaskStatus } from "@/lib/types";
 import { STATUS_CONFIG } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { formatDuration, formatTime } from "@/lib/format";
 import { Check, Circle, Loader2 } from "lucide-react";
 
 interface StatusTimelineProps {
@@ -11,6 +12,7 @@ interface StatusTimelineProps {
   updatedAt: string;
   completedAt: string | null;
   durationSeconds: number | null;
+  errorMessage?: string | null;
 }
 
 const TIMELINE_STEPS: TaskStatus[] = [
@@ -22,27 +24,13 @@ const TIMELINE_STEPS: TaskStatus[] = [
   "completed",
 ];
 
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  return m > 0 ? `${m}m ${s}s` : `${s}s`;
-}
-
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-}
-
 export function StatusTimeline({
   status,
   createdAt,
   updatedAt,
   completedAt,
   durationSeconds,
+  errorMessage,
 }: StatusTimelineProps) {
   const currentIndex = TIMELINE_STEPS.indexOf(status);
   const isFailed = status === "failed";
@@ -130,30 +118,37 @@ export function StatusTimeline({
 
       {/* Failed / cancelled indicator */}
       {(isFailed || isCancelled) && (
-        <div className="mt-1 flex items-center gap-3">
-          <div
-            className={cn(
-              "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2",
-              isFailed && "border-red-500 bg-red-500/10 text-red-500",
-              isCancelled && "border-zinc-400 bg-zinc-400/10 text-zinc-400"
-            )}
-          >
-            <Circle className="h-3 w-3 fill-current" />
-          </div>
-          <div className="flex flex-col">
-            <span
+        <div className="mt-1 flex flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <div
               className={cn(
-                "font-mono text-xs uppercase tracking-wider",
-                isFailed && "text-red-500",
-                isCancelled && "text-zinc-400"
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2",
+                isFailed && "border-red-500 bg-red-500/10 text-red-500",
+                isCancelled && "border-zinc-400 bg-zinc-400/10 text-zinc-400"
               )}
             >
-              {STATUS_CONFIG[status].label}
-            </span>
-            <span className="font-mono text-[10px] text-muted-foreground">
-              {formatTime(updatedAt)}
-            </span>
+              <Circle className="h-3 w-3 fill-current" />
+            </div>
+            <div className="flex flex-col">
+              <span
+                className={cn(
+                  "font-mono text-xs uppercase tracking-wider",
+                  isFailed && "text-red-500",
+                  isCancelled && "text-zinc-400"
+                )}
+              >
+                {STATUS_CONFIG[status].label}
+              </span>
+              <span className="font-mono text-[10px] text-muted-foreground">
+                {formatTime(updatedAt)}
+              </span>
+            </div>
           </div>
+          {isFailed && errorMessage && (
+            <p className="ml-10 font-mono text-[11px] leading-relaxed text-red-400/80">
+              {errorMessage}
+            </p>
+          )}
         </div>
       )}
 

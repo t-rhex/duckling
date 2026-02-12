@@ -59,7 +59,7 @@ export default function PoolPage() {
     <div className="animate-fade-in-up flex flex-col gap-6">
       {/* Page Title */}
       <h1 className="font-mono text-lg uppercase tracking-widest text-foreground">
-        VM Pool
+        Fleet
       </h1>
 
       {/* Indicator lights + inline metrics */}

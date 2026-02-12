@@ -15,39 +15,8 @@ import { TaskPriorityBadge } from "@/components/tasks/task-priority-badge";
 import { TaskModeBadge } from "@/components/tasks/task-mode-badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatDuration, formatRelativeTime, truncate } from "@/lib/format";
 import type { TaskResponse } from "@/lib/types";
-
-// ── Helpers ──────────────────────────────────────────────────
-
-function formatDuration(seconds: number | null): string {
-  if (seconds === null || seconds === undefined) return "\u2014";
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  if (m === 0) return `${s}s`;
-  return `${m}m ${s}s`;
-}
-
-function formatRelativeTime(iso: string): string {
-  const now = Date.now();
-  const then = new Date(iso).getTime();
-  const diff = Math.floor((now - then) / 1000);
-
-  if (diff < 60) return `${diff}s ago`;
-
-  const minutes = Math.floor(diff / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
-function truncate(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text;
-  return text.slice(0, maxLength).trimEnd() + "\u2026";
-}
 
 // ── Component ────────────────────────────────────────────────
 
@@ -57,6 +26,7 @@ interface TaskTableProps {
   page: number;
   perPage: number;
   onPageChange: (page: number) => void;
+  hidePageControls?: boolean;
 }
 
 const TH_CLASS =
@@ -68,13 +38,14 @@ export function TaskTable({
   page,
   perPage,
   onPageChange,
+  hidePageControls = false,
 }: TaskTableProps) {
   const totalPages = Math.max(1, Math.ceil(total / perPage));
 
   if (tasks.length === 0) {
     return (
       <div className="flex h-64 items-center justify-center rounded-sm border border-dashed border-zinc-800 text-sm font-mono text-muted-foreground uppercase tracking-wider">
-        No tasks found
+        No missions found
       </div>
     );
   }
@@ -169,33 +140,35 @@ export function TaskTable({
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <p className="font-mono text-xs text-muted-foreground uppercase tracking-wider">
-          Page {page} of {totalPages}
-        </p>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="font-mono text-xs uppercase tracking-wider"
-            onClick={() => onPageChange(page - 1)}
-            disabled={page <= 1}
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-            Prev
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="font-mono text-xs uppercase tracking-wider"
-            onClick={() => onPageChange(page + 1)}
-            disabled={page >= totalPages}
-          >
-            Next
-            <ChevronRight className="h-3.5 w-3.5" />
-          </Button>
+      {!hidePageControls && (
+        <div className="flex items-center justify-between">
+          <p className="font-mono text-xs text-muted-foreground uppercase tracking-wider">
+            Page {page} of {totalPages}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="font-mono text-xs uppercase tracking-wider"
+              onClick={() => onPageChange(page - 1)}
+              disabled={page <= 1}
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+              Prev
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="font-mono text-xs uppercase tracking-wider"
+              onClick={() => onPageChange(page + 1)}
+              disabled={page >= totalPages}
+            >
+              Next
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

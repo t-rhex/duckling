@@ -11,29 +11,8 @@ import {
 } from "@/components/ui/table";
 import { TaskStatusBadge } from "@/components/tasks/task-status-badge";
 import { TaskModeBadge } from "@/components/tasks/task-mode-badge";
+import { formatRelativeTime, truncate } from "@/lib/format";
 import type { TaskResponse } from "@/lib/types";
-
-function formatRelativeTime(dateString: string): string {
-  const now = Date.now();
-  const then = new Date(dateString).getTime();
-  const diffSeconds = Math.floor((now - then) / 1000);
-
-  if (diffSeconds < 60) return `${diffSeconds}s ago`;
-
-  const diffMinutes = Math.floor(diffSeconds / 60);
-  if (diffMinutes < 60) return `${diffMinutes}m ago`;
-
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-
-  const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays}d ago`;
-}
-
-function truncate(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text;
-  return text.slice(0, maxLength).trimEnd() + "\u2026";
-}
 
 interface RecentTasksProps {
   tasks: TaskResponse[];

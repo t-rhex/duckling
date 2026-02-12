@@ -7,6 +7,7 @@ import { RecentTasks } from "@/components/dashboard/recent-tasks";
 import { PoolMini } from "@/components/dashboard/pool-mini";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Server } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function DashboardHome() {
@@ -14,16 +15,9 @@ export default function DashboardHome() {
   const { data: poolStats, isLoading: poolLoading } = usePoolStats();
   const { data: health } = useHealth();
 
-  const tasks = taskData?.tasks ?? [];
-  const activeTasks = tasks.filter(
-    (t) =>
-      t.status === "running" ||
-      t.status === "testing" ||
-      t.status === "creating_pr"
-  ).length;
-  const completedTasks = tasks.filter((t) => t.status === "completed").length;
-
+  const totalMissions = taskData?.total ?? 0;
   const isConnected = health?.queue_connected ?? false;
+  const isHealthy = health?.status === "healthy" && isConnected;
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -80,21 +74,21 @@ export default function DashboardHome() {
         </div>
       ) : (
         <StatCards
-          activeTasks={activeTasks}
-          completedTasks={completedTasks}
+          totalMissions={totalMissions}
           readyVMs={poolStats?.ready_vms ?? 0}
           avgClaimTime={poolStats?.avg_claim_time_ms ?? 0}
+          isHealthy={isHealthy}
         />
       )}
 
-      {/* ── Bottom Row: Recent Tasks + Pool Mini ── */}
+      {/* ── Bottom Row: Recent Missions + Fleet Status ── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Recent Tasks — 2 cols */}
+        {/* Recent Missions — 2 cols */}
         <div className="lg:col-span-2">
           <Card className="card-hover">
             <CardHeader className="pb-3">
               <CardTitle className="text-[11px] font-mono font-medium uppercase tracking-widest text-muted-foreground">
-                RECENT
+                RECENT MISSIONS
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -105,19 +99,40 @@ export default function DashboardHome() {
                   ))}
                 </div>
               ) : (
-                <RecentTasks tasks={tasks.slice(0, 5)} />
+                <RecentTasks tasks={(taskData?.tasks ?? []).slice(0, 5)} />
               )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Pool Mini — 1 col */}
+        {/* Fleet Status — 1 col */}
         <div>
           {poolLoading ? (
             <Skeleton className="h-64 rounded-xl" />
           ) : poolStats ? (
             <PoolMini stats={poolStats} />
-          ) : null}
+          ) : (
+            <Card className="card-hover">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-[11px] font-mono font-medium uppercase tracking-widest text-muted-foreground">
+                  FLEET STATUS
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col items-center justify-center h-40 gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-800">
+                    <Server className="h-5 w-5 text-zinc-600" />
+                  </div>
+                  <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground/60">
+                    Fleet offline
+                  </p>
+                  <p className="font-mono text-[10px] text-muted-foreground/40 text-center max-w-[200px]">
+                    No pool data available. Start the orchestrator to see fleet status.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>

@@ -6,16 +6,11 @@ import { TaskStatusBadge } from "@/components/tasks/task-status-badge";
 import { TaskPriorityBadge } from "@/components/tasks/task-priority-badge";
 import { TaskModeBadge } from "@/components/tasks/task-mode-badge";
 import { Separator } from "@/components/ui/separator";
-import { GitBranch, Clock, User, ExternalLink, FileCode2 } from "lucide-react";
+import { formatDuration } from "@/lib/format";
+import { GitBranch, Clock, User, ExternalLink, FileCode2, AlertTriangle } from "lucide-react";
 
 interface TaskMetadataProps {
   task: TaskResponse;
-}
-
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
 function MetadataRow({
@@ -48,6 +43,16 @@ export function TaskMetadata({ task }: TaskMetadataProps) {
           <TaskStatusBadge status={task.status} />
         </MetadataRow>
 
+        {/* Error message for failed tasks */}
+        {task.status === "failed" && task.error_message && (
+          <div className="flex items-start gap-2 rounded-md border border-red-500/20 bg-red-500/5 px-3 py-2">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-500 mt-0.5" />
+            <p className="font-mono text-xs text-red-400 leading-relaxed">
+              {task.error_message}
+            </p>
+          </div>
+        )}
+
         <MetadataRow label="Mode">
           <TaskModeBadge mode={task.mode} />
         </MetadataRow>
@@ -78,7 +83,7 @@ export function TaskMetadata({ task }: TaskMetadataProps) {
         </MetadataRow>
 
         <MetadataRow label="Source">
-          <span className="font-mono text-xs capitalize">{task.source}</span>
+          <span className="font-mono text-xs capitalize">{task.source.replace(/_/g, " ")}</span>
         </MetadataRow>
 
         <MetadataRow label="Requester">

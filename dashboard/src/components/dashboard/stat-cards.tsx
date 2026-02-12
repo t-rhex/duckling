@@ -2,34 +2,24 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Activity, CheckCircle2, Server, Timer } from "lucide-react";
+import { Rocket, Server, Timer, ShieldCheck } from "lucide-react";
 
 interface StatCardsProps {
-  activeTasks: number;
-  completedTasks: number;
+  totalMissions: number;
   readyVMs: number;
   avgClaimTime: number;
+  isHealthy: boolean;
 }
 
 const stats = [
   {
-    key: "active",
-    label: "ACTIVE TASKS",
-    icon: Activity,
+    key: "total",
+    label: "TOTAL MISSIONS",
+    icon: Rocket,
     iconColor: "text-amber-500",
     iconBg: "bg-amber-500/10",
     borderColor: "border-l-amber-500",
-    getValue: (p: StatCardsProps) => p.activeTasks,
-    format: (v: number) => v.toLocaleString(),
-  },
-  {
-    key: "completed",
-    label: "COMPLETED",
-    icon: CheckCircle2,
-    iconColor: "text-emerald-500",
-    iconBg: "bg-emerald-500/10",
-    borderColor: "border-l-emerald-500",
-    getValue: (p: StatCardsProps) => p.completedTasks,
+    getValue: (p: StatCardsProps) => p.totalMissions,
     format: (v: number) => v.toLocaleString(),
   },
   {
@@ -51,6 +41,17 @@ const stats = [
     borderColor: "border-l-violet-500",
     getValue: (p: StatCardsProps) => p.avgClaimTime,
     format: (v: number) => `${v.toLocaleString()}ms`,
+  },
+  {
+    key: "health",
+    label: "SYSTEM HEALTH",
+    icon: ShieldCheck,
+    iconColor: "text-emerald-500",
+    iconBg: "bg-emerald-500/10",
+    borderColor: "border-l-emerald-500",
+    getValue: (p: StatCardsProps) => (p.isHealthy ? 1 : 0),
+    format: (_v: number, p: StatCardsProps) =>
+      p.isHealthy ? "Nominal" : "Offline",
   },
 ] as const;
 
@@ -90,9 +91,14 @@ export function StatCards(props: StatCardsProps) {
                   </div>
                 </div>
 
-                {/* Value — huge mono number */}
-                <p className="text-4xl font-mono font-bold tracking-tight">
-                  {format(value)}
+                {/* Value — huge mono number (or label for health) */}
+                <p
+                  className={cn(
+                    "font-mono font-bold tracking-tight",
+                    key === "health" ? "text-2xl" : "text-4xl"
+                  )}
+                >
+                  {format(value, props)}
                 </p>
 
                 {/* Label — tiny mono uppercase */}

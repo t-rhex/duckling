@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, XCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -9,6 +10,17 @@ import { useTaskWebSocket } from "@/hooks/use-task-ws";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { StatusTimeline } from "@/components/detail/status-timeline";
 import { AgentLogViewer } from "@/components/detail/agent-log-viewer";
 import { ReviewRenderer } from "@/components/detail/review-renderer";
@@ -98,16 +110,41 @@ export function TaskDetailClient({ id }: { id: string }) {
         </Link>
 
         {canCancel && (
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={handleCancel}
-            disabled={cancelMutation.isPending}
-            className="gap-1.5 font-mono uppercase tracking-wider text-xs"
-          >
-            <XCircle className="h-4 w-4" />
-            {cancelMutation.isPending ? "Cancelling..." : "Cancel Mission"}
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={cancelMutation.isPending}
+                className="gap-1.5 font-mono uppercase tracking-wider text-xs"
+              >
+                <XCircle className="h-4 w-4" />
+                {cancelMutation.isPending ? "Cancelling..." : "Cancel Mission"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="dark:bg-[#1C1917] border-border">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="font-mono text-sm uppercase tracking-wider">
+                  Cancel this mission?
+                </AlertDialogTitle>
+                <AlertDialogDescription className="font-mono text-xs text-muted-foreground leading-relaxed">
+                  This action cannot be undone. The agent will stop executing and
+                  the mission will be marked as cancelled.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="font-mono text-xs uppercase tracking-wider">
+                  Keep Running
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleCancel}
+                  className="bg-red-600 hover:bg-red-700 font-mono text-xs uppercase tracking-wider"
+                >
+                  Yes, Cancel Mission
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         )}
       </div>
 
@@ -169,6 +206,7 @@ export function TaskDetailClient({ id }: { id: string }) {
             updatedAt={task.updated_at}
             completedAt={task.completed_at}
             durationSeconds={task.duration_seconds}
+            errorMessage={task.error_message}
           />
         </div>
       </div>
