@@ -7,8 +7,7 @@ import { RecentTasks } from "@/components/dashboard/recent-tasks";
 import { PoolMini } from "@/components/dashboard/pool-mini";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Wifi, WifiOff } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function DashboardHome() {
   const { data: taskData, isLoading: tasksLoading } = useTasks(1, 10);
@@ -24,38 +23,55 @@ export default function DashboardHome() {
   ).length;
   const completedTasks = tasks.filter((t) => t.status === "completed").length;
 
+  const isConnected = health?.queue_connected ?? false;
+
   return (
-    <div className="space-y-8">
-      {/* Header */}
+    <div className="space-y-8 animate-fade-in">
+      {/* ── Header ── */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Autonomous coding agent platform overview
-          </p>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-mono font-bold uppercase tracking-widest">
+            Mission Control
+          </h1>
+          {/* Amber status dot */}
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--duckling-amber)] opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--duckling-amber)]" />
+          </span>
         </div>
-        <div className="flex items-center gap-2">
-          {health?.queue_connected ? (
-            <Badge
-              variant="outline"
-              className="gap-1.5 border-emerald-500/30 text-emerald-500"
+
+        {/* Connection status — dramatic indicator */}
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5">
+            <span className="relative flex h-2.5 w-2.5">
+              {isConnected ? (
+                <>
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 glow-amber-sm" style={{ boxShadow: "0 0 8px 2px rgba(16, 185, 129, 0.4)" }} />
+                </>
+              ) : (
+                <>
+                  <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-red-400 opacity-75" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" style={{ boxShadow: "0 0 8px 2px rgba(239, 68, 68, 0.5)" }} />
+                </>
+              )}
+            </span>
+            <span
+              className={cn(
+                "text-[10px] font-mono font-medium uppercase tracking-widest",
+                isConnected ? "text-emerald-500" : "text-red-500"
+              )}
             >
-              <Wifi className="h-3 w-3" />
-              Connected
-            </Badge>
-          ) : (
-            <Badge
-              variant="outline"
-              className="gap-1.5 border-red-500/30 text-red-500"
-            >
-              <WifiOff className="h-3 w-3" />
-              Disconnected
-            </Badge>
-          )}
+              {isConnected ? "LINKED" : "OFFLINE"}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Stat Cards */}
+      {/* Thin ambient separator */}
+      <div className="h-px w-full bg-gradient-to-r from-transparent via-[var(--duckling-amber-muted)] to-transparent" />
+
+      {/* ── Stat Cards ── */}
       {tasksLoading || poolLoading ? (
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -71,12 +87,15 @@ export default function DashboardHome() {
         />
       )}
 
-      {/* Bottom row: Recent Tasks + Pool Mini */}
+      {/* ── Bottom Row: Recent Tasks + Pool Mini ── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Recent Tasks — 2 cols */}
         <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Recent Tasks</CardTitle>
+          <Card className="card-hover">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-[11px] font-mono font-medium uppercase tracking-widest text-muted-foreground">
+                RECENT
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {tasksLoading ? (
@@ -91,6 +110,8 @@ export default function DashboardHome() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Pool Mini — 1 col */}
         <div>
           {poolLoading ? (
             <Skeleton className="h-64 rounded-xl" />

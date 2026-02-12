@@ -14,9 +14,16 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
 export function TaskModeBadge({ mode }: { mode: TaskMode }) {
   const config = MODE_CONFIG[mode];
   const Icon = ICONS[config.icon];
+
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium", config.color)}>
-      {Icon && <Icon className="h-3 w-3" />}
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5",
+        "font-mono text-xs uppercase tracking-wider",
+        config.color
+      )}
+    >
+      {Icon && <Icon className="h-3 w-3 shrink-0" />}
       {config.label}
     </span>
   );

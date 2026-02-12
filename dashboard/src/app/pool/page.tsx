@@ -2,15 +2,9 @@
 
 import { usePoolStats, useHealth } from "@/hooks/use-pool-stats";
 import PoolGrid from "@/components/pool/pool-grid";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Wifi, WifiOff, Server } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function PoolPage() {
   const {
@@ -28,25 +22,30 @@ export default function PoolPage() {
 
   const isLoading = statsLoading || healthLoading;
 
-  // ── Loading state ──────────────────────────────────────────
+  // Loading state
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-6 p-6">
-        <Skeleton className="h-8 w-40" />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Skeleton className="h-[120px] rounded-lg" />
-          <Skeleton className="h-[120px] rounded-lg" />
+      <div className="animate-fade-in flex flex-col gap-6">
+        <Skeleton className="h-6 w-32" />
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-4 w-28" />
         </div>
-        <Skeleton className="h-[300px] rounded-lg" />
+        <Skeleton className="h-[200px] rounded-lg" />
+        <div className="grid grid-cols-3 gap-3">
+          <Skeleton className="h-[72px] rounded-lg" />
+          <Skeleton className="h-[72px] rounded-lg" />
+          <Skeleton className="h-[72px] rounded-lg" />
+        </div>
       </div>
     );
   }
 
-  // ── Error state ────────────────────────────────────────────
+  // Error state
   if (statsError || healthError) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 p-12">
-        <p className="text-sm text-destructive">
+        <p className="font-mono text-sm text-destructive">
           {statsErr?.message ?? healthErr?.message ?? "Failed to load pool data"}
         </p>
       </div>
@@ -57,85 +56,76 @@ export default function PoolPage() {
   const queueConnected = health?.queue_connected ?? false;
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      {/* ── Page Title ────────────────────────────────────── */}
-      <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+    <div className="animate-fade-in-up flex flex-col gap-6">
+      {/* Page Title */}
+      <h1 className="font-mono text-lg uppercase tracking-widest text-foreground">
         VM Pool
       </h1>
 
-      {/* ── Health Cards ──────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {/* System Status */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Server className="h-4 w-4" />
-              System Status
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-              <Badge
-                variant={isHealthy ? "default" : "destructive"}
-                className={
-                  isHealthy
-                    ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                    : undefined
-                }
-              >
-                {isHealthy ? "Healthy" : "Unhealthy"}
-              </Badge>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              {queueConnected ? (
-                <>
-                  <Wifi className="h-3.5 w-3.5 text-emerald-500" />
-                  Queue connected
-                </>
-              ) : (
-                <>
-                  <WifiOff className="h-3.5 w-3.5 text-red-500" />
-                  Queue disconnected
-                </>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Indicator lights + inline metrics */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+        {/* Health status */}
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "h-2 w-2 rounded-full",
+              isHealthy ? "bg-emerald-500" : "bg-red-500"
+            )}
+          />
+          <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+            {isHealthy ? "Healthy" : "Unhealthy"}
+          </span>
+        </div>
 
-        {/* Pool Summary */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Server className="h-4 w-4" />
-              Pool Summary
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl className="grid grid-cols-3 gap-4 text-sm">
-              <div>
-                <dt className="text-muted-foreground">Target Size</dt>
-                <dd className="font-mono text-lg font-semibold text-foreground">
-                  {stats?.target_pool_size ?? "—"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Total VMs</dt>
-                <dd className="font-mono text-lg font-semibold text-foreground">
-                  {stats?.total_vms ?? "—"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Backend</dt>
-                <dd className="text-lg font-semibold capitalize text-foreground">
-                  {stats?.backend ?? "—"}
-                </dd>
-              </div>
-            </dl>
-          </CardContent>
-        </Card>
+        {/* Queue connection */}
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "h-2 w-2 rounded-full",
+              queueConnected ? "bg-emerald-500" : "bg-red-500"
+            )}
+          />
+          <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+            {queueConnected ? "Queue Connected" : "Queue Disconnected"}
+          </span>
+        </div>
+
+        {/* Separator */}
+        <div className="hidden h-4 w-px bg-zinc-700 sm:block" />
+
+        {/* Pool summary inline metrics */}
+        <div className="flex items-center gap-4">
+          <span className="font-mono text-xs text-muted-foreground">
+            Target{" "}
+            <Badge
+              variant="secondary"
+              className="ml-1 font-mono text-xs tabular-nums"
+            >
+              {stats?.target_pool_size ?? "--"}
+            </Badge>
+          </span>
+          <span className="font-mono text-xs text-muted-foreground">
+            Total{" "}
+            <Badge
+              variant="secondary"
+              className="ml-1 font-mono text-xs tabular-nums"
+            >
+              {stats?.total_vms ?? "--"}
+            </Badge>
+          </span>
+          <span className="font-mono text-xs text-muted-foreground">
+            Ready{" "}
+            <Badge
+              variant="secondary"
+              className="ml-1 font-mono text-xs tabular-nums"
+            >
+              {stats?.ready_vms ?? "--"}
+            </Badge>
+          </span>
+        </div>
       </div>
 
-      {/* ── Pool Grid ─────────────────────────────────────── */}
+      {/* Pool Grid */}
       {stats && <PoolGrid stats={stats} />}
     </div>
   );

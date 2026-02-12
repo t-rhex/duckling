@@ -29,7 +29,7 @@ export function TaskDetailClient({ id }: { id: string }) {
 
   const handleCancel = () => {
     cancelMutation.mutate(id, {
-      onSuccess: () => toast.success("Task cancellation requested"),
+      onSuccess: () => toast.success("Mission cancellation requested"),
       onError: (err) =>
         toast.error(`Failed to cancel: ${err.message}`),
     });
@@ -38,12 +38,12 @@ export function TaskDetailClient({ id }: { id: string }) {
   // ── Loading state ──────────────────────────────────────────
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-6 p-6">
-        {/* Back button skeleton */}
+      <div className="flex flex-col gap-6 p-6 animate-fade-in-up">
         <Skeleton className="h-9 w-28" />
-        {/* Title skeleton */}
-        <Skeleton className="h-8 w-3/4" />
-        {/* Content skeleton */}
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-8 w-3/4" />
+        </div>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[3fr_1fr]">
           <div className="flex flex-col gap-4">
             <Skeleton className="h-10 w-56" />
@@ -61,11 +61,16 @@ export function TaskDetailClient({ id }: { id: string }) {
   // ── Error state ────────────────────────────────────────────
   if (isError) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 p-12">
-        <p className="text-sm text-destructive">
-          {error?.message ?? "Failed to load task"}
+      <div className="flex flex-col items-center justify-center gap-4 p-12 animate-fade-in-up">
+        <p className="font-mono text-sm text-destructive uppercase tracking-wider">
+          {error?.message ?? "Failed to load mission"}
         </p>
-        <Button variant="outline" size="sm" onClick={() => refetch()}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => refetch()}
+          className="font-mono uppercase tracking-wider text-xs"
+        >
           Retry
         </Button>
       </div>
@@ -78,11 +83,15 @@ export function TaskDetailClient({ id }: { id: string }) {
   const canCancel = task.status === "pending" || isLive;
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 p-6 animate-fade-in-up">
       {/* ── Header ────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-4">
         <Link href="/tasks">
-          <Button variant="ghost" size="sm" className="gap-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 font-mono uppercase tracking-wider text-xs"
+          >
             <ArrowLeft className="h-4 w-4" />
             Back
           </Button>
@@ -94,26 +103,41 @@ export function TaskDetailClient({ id }: { id: string }) {
             size="sm"
             onClick={handleCancel}
             disabled={cancelMutation.isPending}
-            className="gap-1.5"
+            className="gap-1.5 font-mono uppercase tracking-wider text-xs"
           >
             <XCircle className="h-4 w-4" />
-            {cancelMutation.isPending ? "Cancelling..." : "Cancel Task"}
+            {cancelMutation.isPending ? "Cancelling..." : "Cancel Mission"}
           </Button>
         )}
       </div>
 
       {/* ── Title ─────────────────────────────────────────── */}
-      <h1 className="text-2xl font-semibold tracking-tight text-foreground line-clamp-2">
-        {task.description}
-      </h1>
+      <div className="space-y-1">
+        <span className="block font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">
+          {task.id.slice(0, 8)}
+        </span>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground line-clamp-2">
+          {task.description}
+        </h1>
+      </div>
 
       {/* ── Content: 2-column desktop ─────────────────────── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[3fr_1fr]">
         {/* ── Left column: Tabs ───────────────────────────── */}
         <Tabs defaultValue="agent-log" className="flex flex-col gap-0">
           <TabsList>
-            <TabsTrigger value="agent-log">Agent Log</TabsTrigger>
-            <TabsTrigger value="review">Review</TabsTrigger>
+            <TabsTrigger
+              value="agent-log"
+              className="font-mono uppercase tracking-wider text-xs"
+            >
+              Agent Log
+            </TabsTrigger>
+            <TabsTrigger
+              value="review"
+              className="font-mono uppercase tracking-wider text-xs"
+            >
+              Review
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="agent-log" className="mt-4">
@@ -128,7 +152,7 @@ export function TaskDetailClient({ id }: { id: string }) {
               <ReviewRenderer content={task.review_output} />
             ) : (
               <div className="flex items-center justify-center rounded-lg border border-dashed border-muted-foreground/25 py-16">
-                <p className="text-sm text-muted-foreground">
+                <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground/60">
                   No review output yet
                 </p>
               </div>

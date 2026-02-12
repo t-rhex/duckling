@@ -29,7 +29,12 @@ function formatDuration(seconds: number): string {
 }
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString();
+  return new Date(iso).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
 }
 
 export function StatusTimeline({
@@ -62,11 +67,10 @@ export function StatusTimeline({
                   className={cn(
                     "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
                     isCompleted &&
-                      "border-emerald-500 bg-emerald-500/10 text-emerald-500",
-                    isCurrent &&
-                      "border-blue-500 bg-blue-500/10 text-blue-500",
+                      "border-[var(--duckling-amber)] bg-[var(--duckling-amber-soft)] text-[var(--duckling-amber)]",
+                    isCurrent && "border-blue-500 bg-blue-500/10 text-blue-500",
                     isFuture &&
-                      "border-muted-foreground/25 bg-muted/50 text-muted-foreground/40"
+                      "border-zinc-700 bg-zinc-800/50 text-zinc-600"
                   )}
                 >
                   {isCompleted ? (
@@ -80,10 +84,12 @@ export function StatusTimeline({
                 {!isLast && (
                   <div
                     className={cn(
-                      "w-px flex-1 min-h-5",
-                      isCompleted || (isCurrent && index < TIMELINE_STEPS.length - 1)
-                        ? "bg-emerald-500/40"
-                        : "bg-muted-foreground/15"
+                      "min-h-5 w-px flex-1",
+                      isCompleted
+                        ? "bg-[var(--duckling-amber-muted)]"
+                        : isCurrent
+                          ? "bg-blue-500/30"
+                          : "border-l border-dashed border-zinc-700 bg-transparent"
                     )}
                   />
                 )}
@@ -93,26 +99,26 @@ export function StatusTimeline({
               <div className="flex flex-col pb-4">
                 <span
                   className={cn(
-                    "text-sm font-medium leading-7",
+                    "font-mono text-xs uppercase leading-7 tracking-wider",
                     isCompleted && "text-foreground",
                     isCurrent && "text-blue-500",
-                    isFuture && "text-muted-foreground/50"
+                    isFuture && "text-zinc-600"
                   )}
                 >
                   {config.label}
                 </span>
                 {isCompleted && index === 0 && (
-                  <span className="text-xs text-muted-foreground">
+                  <span className="font-mono text-[10px] text-muted-foreground">
                     {formatTime(createdAt)}
                   </span>
                 )}
                 {isCompleted && step === "completed" && completedAt && (
-                  <span className="text-xs text-muted-foreground">
+                  <span className="font-mono text-[10px] text-muted-foreground">
                     {formatTime(completedAt)}
                   </span>
                 )}
                 {isCurrent && (
-                  <span className="text-xs text-muted-foreground">
+                  <span className="font-mono text-[10px] text-muted-foreground">
                     {formatTime(updatedAt)}
                   </span>
                 )}
@@ -124,7 +130,7 @@ export function StatusTimeline({
 
       {/* Failed / cancelled indicator */}
       {(isFailed || isCancelled) && (
-        <div className="flex items-center gap-3 mt-1">
+        <div className="mt-1 flex items-center gap-3">
           <div
             className={cn(
               "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2",
@@ -134,23 +140,30 @@ export function StatusTimeline({
           >
             <Circle className="h-3 w-3 fill-current" />
           </div>
-          <span
-            className={cn(
-              "text-sm font-medium",
-              isFailed && "text-red-500",
-              isCancelled && "text-zinc-400"
-            )}
-          >
-            {STATUS_CONFIG[status].label}
-          </span>
+          <div className="flex flex-col">
+            <span
+              className={cn(
+                "font-mono text-xs uppercase tracking-wider",
+                isFailed && "text-red-500",
+                isCancelled && "text-zinc-400"
+              )}
+            >
+              {STATUS_CONFIG[status].label}
+            </span>
+            <span className="font-mono text-[10px] text-muted-foreground">
+              {formatTime(updatedAt)}
+            </span>
+          </div>
         </div>
       )}
 
       {/* Duration */}
       {durationSeconds != null && (
-        <div className="mt-3 flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2">
-          <span className="text-xs text-muted-foreground">Duration</span>
-          <span className="text-xs font-mono font-semibold text-foreground">
+        <div className="mt-3 flex items-center gap-2 rounded-md border border-[rgba(251,191,36,0.08)] bg-[var(--duckling-amber-soft)] px-3 py-2">
+          <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+            Duration
+          </span>
+          <span className="font-mono text-xs font-semibold text-[var(--duckling-amber)]">
             {formatDuration(durationSeconds)}
           </span>
         </div>

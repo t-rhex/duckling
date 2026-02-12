@@ -42,25 +42,34 @@ interface RecentTasksProps {
 export function RecentTasks({ tasks }: RecentTasksProps) {
   if (tasks.length === 0) {
     return (
-      <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
-        No recent tasks
+      <div className="flex h-32 items-center justify-center">
+        <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground/60">
+          No missions yet
+        </p>
       </div>
     );
   }
 
+  const headerClasses =
+    "font-mono text-[10px] uppercase tracking-widest text-muted-foreground";
+
   return (
     <Table>
       <TableHeader>
-        <TableRow>
-          <TableHead className="w-[100px]">Status</TableHead>
-          <TableHead>Description</TableHead>
-          <TableHead className="w-[100px]">Mode</TableHead>
-          <TableHead className="w-[80px] text-right">Time</TableHead>
+        <TableRow className="border-border/40 hover:bg-transparent">
+          <TableHead className={`w-[100px] ${headerClasses}`}>
+            Status
+          </TableHead>
+          <TableHead className={headerClasses}>Description</TableHead>
+          <TableHead className={`w-[100px] ${headerClasses}`}>Mode</TableHead>
+          <TableHead className={`w-[80px] text-right ${headerClasses}`}>
+            Time
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {tasks.map((task) => (
-          <TableRow key={task.id} className="group cursor-pointer">
+          <TableRow key={task.id} className="table-row-hover group cursor-pointer border-border/30">
             <TableCell>
               <Link href={`/tasks/detail?id=${task.id}`} className="block">
                 <TaskStatusBadge status={task.status} />
@@ -69,9 +78,14 @@ export function RecentTasks({ tasks }: RecentTasksProps) {
             <TableCell>
               <Link
                 href={`/tasks/detail?id=${task.id}`}
-                className="block text-sm group-hover:text-foreground text-muted-foreground transition-colors"
+                className="block transition-colors"
               >
-                {truncate(task.description, 60)}
+                <span className="block font-mono text-[10px] text-muted-foreground/50 leading-none mb-0.5">
+                  {task.id.slice(0, 8)}
+                </span>
+                <span className="block text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+                  {truncate(task.description, 60)}
+                </span>
               </Link>
             </TableCell>
             <TableCell>

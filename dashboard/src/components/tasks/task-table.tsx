@@ -14,6 +14,7 @@ import { TaskStatusBadge } from "@/components/tasks/task-status-badge";
 import { TaskPriorityBadge } from "@/components/tasks/task-priority-badge";
 import { TaskModeBadge } from "@/components/tasks/task-mode-badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { TaskResponse } from "@/lib/types";
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -58,6 +59,9 @@ interface TaskTableProps {
   onPageChange: (page: number) => void;
 }
 
+const TH_CLASS =
+  "uppercase tracking-wider text-[11px] font-mono text-muted-foreground";
+
 export function TaskTable({
   tasks,
   total,
@@ -69,7 +73,7 @@ export function TaskTable({
 
   if (tasks.length === 0) {
     return (
-      <div className="flex h-64 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+      <div className="flex h-64 items-center justify-center rounded-sm border border-dashed border-zinc-800 text-sm font-mono text-muted-foreground uppercase tracking-wider">
         No tasks found
       </div>
     );
@@ -77,48 +81,75 @@ export function TaskTable({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border">
+      <div className="rounded-sm border border-zinc-800/60 overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead className="w-[120px]">Status</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead className="w-[100px]">Mode</TableHead>
-              <TableHead className="w-[100px]">Priority</TableHead>
-              <TableHead className="w-[90px] text-right">Duration</TableHead>
-              <TableHead className="w-[90px] text-right">Created</TableHead>
+            <TableRow className="border-zinc-800/60 hover:bg-transparent">
+              <TableHead className={cn(TH_CLASS, "w-[130px]")}>
+                Status
+              </TableHead>
+              <TableHead className={TH_CLASS}>Description</TableHead>
+              <TableHead className={cn(TH_CLASS, "w-[110px]")}>Mode</TableHead>
+              <TableHead className={cn(TH_CLASS, "w-[100px]")}>
+                Priority
+              </TableHead>
+              <TableHead className={cn(TH_CLASS, "w-[90px] text-right")}>
+                Duration
+              </TableHead>
+              <TableHead className={cn(TH_CLASS, "w-[100px] text-right")}>
+                Created
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {tasks.map((task) => (
-              <TableRow key={task.id} className="group cursor-pointer">
+              <TableRow
+                key={task.id}
+                className="table-row-hover group cursor-pointer border-zinc-800/40 transition-colors"
+              >
                 <TableCell>
-                  <Link href={`/tasks/detail?id=${task.id}`} className="block">
+                  <Link
+                    href={`/tasks/detail?id=${task.id}`}
+                    className="block"
+                  >
                     <TaskStatusBadge status={task.status} />
                   </Link>
                 </TableCell>
                 <TableCell>
                   <Link
                     href={`/tasks/detail?id=${task.id}`}
-                    className="block text-sm text-muted-foreground transition-colors group-hover:text-foreground"
+                    className="block"
                   >
-                    {truncate(task.description, 80)}
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-mono text-[10px] text-muted-foreground/50 shrink-0">
+                        {task.id.slice(0, 8)}
+                      </span>
+                      <span className="font-sans text-sm text-muted-foreground transition-colors group-hover:text-foreground truncate">
+                        {truncate(task.description, 72)}
+                      </span>
+                    </div>
                   </Link>
                 </TableCell>
                 <TableCell>
-                  <Link href={`/tasks/detail?id=${task.id}`} className="block">
+                  <Link
+                    href={`/tasks/detail?id=${task.id}`}
+                    className="block"
+                  >
                     <TaskModeBadge mode={task.mode} />
                   </Link>
                 </TableCell>
                 <TableCell>
-                  <Link href={`/tasks/detail?id=${task.id}`} className="block">
+                  <Link
+                    href={`/tasks/detail?id=${task.id}`}
+                    className="block"
+                  >
                     <TaskPriorityBadge priority={task.priority} />
                   </Link>
                 </TableCell>
                 <TableCell className="text-right">
                   <Link
                     href={`/tasks/detail?id=${task.id}`}
-                    className="block font-mono text-xs text-muted-foreground"
+                    className="block font-mono text-xs text-muted-foreground tabular-nums"
                   >
                     {formatDuration(task.duration_seconds)}
                   </Link>
@@ -126,7 +157,7 @@ export function TaskTable({
                 <TableCell className="text-right">
                   <Link
                     href={`/tasks/detail?id=${task.id}`}
-                    className="block font-mono text-xs text-muted-foreground"
+                    className="block font-mono text-xs text-muted-foreground tabular-nums"
                   >
                     {formatRelativeTime(task.created_at)}
                   </Link>
@@ -139,27 +170,29 @@ export function TaskTable({
 
       {/* Pagination */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
+        <p className="font-mono text-xs text-muted-foreground uppercase tracking-wider">
           Page {page} of {totalPages}
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
+            className="font-mono text-xs uppercase tracking-wider"
             onClick={() => onPageChange(page - 1)}
             disabled={page <= 1}
           >
-            <ChevronLeft className="h-4 w-4" />
-            Previous
+            <ChevronLeft className="h-3.5 w-3.5" />
+            Prev
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
+            className="font-mono text-xs uppercase tracking-wider"
             onClick={() => onPageChange(page + 1)}
             disabled={page >= totalPages}
           >
             Next
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>

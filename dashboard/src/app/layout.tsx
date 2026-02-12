@@ -33,13 +33,18 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <Providers>
-          <div className="flex h-dvh overflow-hidden">
+          <div className="noise-bg flex h-dvh overflow-hidden">
             <Sidebar />
-            <main className="flex-1 overflow-y-auto">
-              <div className="flex items-center justify-end border-b px-6 py-3">
+            <main className="relative flex-1 overflow-y-auto bg-gradient-to-br from-background via-background to-[var(--duckling-amber-soft)]">
+              {/* Amber horizontal rule top bar */}
+              <div className="flex items-center justify-end px-6 py-3 relative">
                 <ThemeToggle />
+                {/* Amber gradient rule replacing plain border */}
+                <div className="absolute bottom-0 left-0 right-0 h-px">
+                  <div className="h-full w-full bg-gradient-to-r from-transparent via-[var(--duckling-amber-muted)] to-transparent" />
+                </div>
               </div>
-              <div className="p-6">{children}</div>
+              <div className="relative z-[1] p-6">{children}</div>
             </main>
           </div>
           <Toaster richColors position="bottom-right" />

@@ -20,7 +20,6 @@ export function AgentLogViewer({ log, isLive = false }: AgentLogViewerProps) {
 
   const scrollToBottom = useCallback(() => {
     if (!containerRef.current) return;
-    // The scroll-area viewport is the first child with overflow
     const viewport = containerRef.current.querySelector(
       '[data-slot="scroll-area-viewport"]'
     );
@@ -61,8 +60,23 @@ export function AgentLogViewer({ log, isLive = false }: AgentLogViewerProps) {
 
   return (
     <div className="relative" ref={containerRef}>
-      <ScrollArea className="h-[500px] rounded-lg bg-zinc-950 border border-zinc-800">
-        <div className="p-4 font-mono text-xs leading-relaxed">
+      <ScrollArea
+        className={cn(
+          "h-[500px] rounded-lg bg-[#0C0A09]",
+          "border border-[rgba(251,191,36,0.08)]"
+        )}
+      >
+        {/* Scanline overlay */}
+        <div
+          className="pointer-events-none absolute inset-0 z-10"
+          style={{
+            backgroundImage:
+              "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(251,191,36,0.015) 2px, rgba(251,191,36,0.015) 4px)",
+            backgroundSize: "100% 4px",
+          }}
+        />
+
+        <div className="relative z-0 p-4 font-mono text-xs leading-relaxed">
           {lines.map((line, i) => (
             <div key={i} className="flex">
               <span
@@ -71,7 +85,7 @@ export function AgentLogViewer({ log, isLive = false }: AgentLogViewerProps) {
               >
                 {i + 1}
               </span>
-              <span className="text-emerald-400/80 whitespace-pre-wrap break-all">
+              <span className="whitespace-pre-wrap break-all text-green-400/90">
                 {line}
               </span>
             </div>
@@ -79,18 +93,18 @@ export function AgentLogViewer({ log, isLive = false }: AgentLogViewerProps) {
         </div>
       </ScrollArea>
 
-      {/* Scroll to bottom button */}
+      {/* Scroll-to-bottom button */}
       <div
         className={cn(
-          "absolute bottom-4 right-4 transition-opacity duration-200",
-          isAtBottom ? "opacity-0 pointer-events-none" : "opacity-100"
+          "absolute bottom-4 right-4 z-20 transition-opacity duration-200",
+          isAtBottom ? "pointer-events-none opacity-0" : "opacity-100"
         )}
       >
         <Button
           variant="secondary"
           size="icon-sm"
           onClick={scrollToBottom}
-          className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 shadow-lg"
+          className="bg-zinc-800 text-zinc-300 shadow-lg hover:bg-zinc-700"
         >
           <ArrowDown className="h-4 w-4" />
         </Button>
@@ -98,9 +112,9 @@ export function AgentLogViewer({ log, isLive = false }: AgentLogViewerProps) {
 
       {/* Live indicator */}
       {isLive && (
-        <div className="absolute top-3 right-3 flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
+        <div className="absolute right-3 top-3 z-20 flex items-center gap-1.5">
+          <span className="status-dot-pulse h-2 w-2 rounded-full bg-[var(--duckling-amber)]" />
+          <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-500">
             Live
           </span>
         </div>
