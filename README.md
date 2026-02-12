@@ -9,7 +9,7 @@ Open-source autonomous coding agent platform. Describe a task, get a PR.
 
 ## What is Duckling?
 
-Duckling is an autonomous coding agent platform. An engineer describes a coding task in plain English -- via Slack, a terminal UI, or the REST API -- and Duckling does the rest. It claims a pre-warmed container in milliseconds, runs an AI coding agent (Goose) inside it, and delivers either a fully-tested pull request or a deep code review report. Zero human code written.
+Duckling is an autonomous coding agent platform. An engineer describes a coding task in plain English -- via the web dashboard, Slack, a terminal UI, or the REST API -- and Duckling does the rest. It claims a pre-warmed container in milliseconds, runs an AI coding agent ([OpenCode](https://opencode.ai)) inside it, and delivers either a fully-tested pull request or a deep code review report. Zero human code written.
 
 The system is inspired by Stripe's internal "Minions" platform, rebuilt from scratch as an open-source project. Where Minions is proprietary and tightly coupled to Stripe's infrastructure, Duckling is self-hosted, provider-agnostic, and designed to work with any OpenAI-compatible LLM backend -- OpenRouter, Anthropic, OpenAI, or local models.
 
@@ -20,23 +20,25 @@ Duckling supports dual modes, automatically classified by its intent engine: **C
 | Feature | Duckling | OpenHands | Aider | Goose (standalone) |
 |---|---|---|---|---|
 | Pre-warmed container pool | Yes | No | No | No |
+| Mission Control web dashboard | Yes | Web UI | CLI only | CLI only |
 | Slack-native interface | Yes | No | No | No |
 | Dual mode (code + review) | Yes | No | No | No |
 | 9-step review pipeline | Yes | No | No | No |
 | Real-time TUI dashboard | Yes | Web UI | CLI only | CLI only |
 | Intent classification | Yes | No | No | No |
 | AST security scanning | Yes | No | No | No |
+| One-command startup | Yes | Yes | N/A | N/A |
 | Self-hosted | Yes | Yes | Yes | Yes |
 
 ## Architecture
 
 ```
-    Slack / TUI / Web UI / CLI / API
-            |
-            v
+    Web Dashboard / Slack / TUI / CLI / API
+             |
+             v
     +---------------+
     |  ORCHESTRATOR  |  FastAPI -- task queue, intent classification, routing
-    +-------+-------+
+    +-------+-------+     serves Mission Control dashboard at /
             |
             v
     +---------------+
@@ -65,56 +67,68 @@ cd duckling
 # Configure
 cp .env.example .env
 # Edit .env -- set your LLM API key (OpenRouter, Anthropic, or OpenAI)
+# Or leave defaults for the free opencode/big-pickle model (no key needed)
 
-# Start services
-docker compose up -d
+# Start everything (Docker mode)
+./start.sh
+```
 
-# Submit a task via the TUI
-cd tui && bun install && bun src/index.ts
+That's it. The start script builds images, compiles the dashboard, and launches all services. Open **http://localhost:8000** to access the Mission Control dashboard.
 
-# Or via CLI
+### Other ways to start
+
+```bash
+./start.sh --dev              # Local dev mode (orchestrator runs natively with hot reload)
+./start.sh --dashboard-dev    # Also start Next.js dev server on :3000
+./start.sh --skip-build       # Skip image and dashboard builds (faster restart)
+./start.sh --stop             # Stop all services and clean up containers
+```
+
+### Submit a mission
+
+```bash
+# Via the web dashboard
+open http://localhost:8000       # Click "New Mission" on the Missions page
+
+# Via CLI
 python scripts/duckling-cli.py submit \
   "Fix the flaky test in auth service" \
   --repo https://github.com/your-org/your-repo
 
-# Or via API
+# Via API
 curl -X POST http://localhost:8000/api/tasks \
   -H "Content-Type: application/json" \
   -d '{"description": "Fix the flaky test", "repo_url": "https://github.com/your-org/your-repo"}'
+
+# Via the TUI
+cd tui && bun install && bun src/index.ts
 ```
 
-## Web Dashboard
+## Mission Control Dashboard
 
-Duckling includes a web dashboard built with Next.js 16, React 19, shadcn/ui, and Tailwind CSS v4. It provides a full-featured UI for managing tasks, monitoring agent execution, and reviewing results.
+Duckling ships with a web dashboard built with Next.js 16, React 19, shadcn/ui, and Tailwind CSS v4. The dashboard uses a "Mission Control" design language -- aerospace-inspired, dark-first, with a warm stone/amber palette, DM Sans + DM Mono typography, noise texture overlays, and staggered fade-in animations.
+
+The static export is served directly by the FastAPI orchestrator at the root URL -- no Node.js server needed in production.
 
 ### Features
 
-- **Dashboard home** -- stat cards, recent tasks, pool health at a glance
-- **Task list** -- paginated table with status, mode, priority, duration
-- **New task form** -- submit tasks with repo URL, branch, mode, priority, iterations, timeout
-- **Task detail** -- live agent log viewer (terminal style), review output markdown renderer, status timeline, metadata sidebar
-- **Pool health** -- VM grid visualization with container states
+- **Mission Control home** -- total missions, VMs ready, avg claim time, system health status, recent missions table, fleet status dot grid
+- **Missions list** -- paginated table with client-side filters for status, mode, and priority
+- **New Mission form** -- submit missions with repo URL, branch, mode, priority, iterations, timeout
+- **Mission detail** -- live agent log viewer (terminal-style with scanline overlay), review output markdown renderer, status timeline, metadata sidebar with error display for failed missions
+- **Fleet page** -- VM grid visualization with container states, health indicators, queue connection status
+- **Cancel confirmation** -- destructive actions require confirmation dialog
 - **Light/dark theme** -- toggle with system preference detection
-- **Real-time updates** -- WebSocket integration for live task monitoring
+- **Real-time updates** -- WebSocket integration for live mission monitoring
 
-### Building the Dashboard
+### Dashboard development
 
 ```bash
 cd dashboard
 npm install
-npm run build        # Outputs static files to dashboard/out/
+npm run dev          # Dev server on http://localhost:3000
+npm run build        # Static export to dashboard/out/
 ```
-
-The static export is served by the FastAPI orchestrator -- no Node.js server needed in production. When running via Docker Compose, the `dashboard/out/` directory is volume-mounted and served at the root URL (http://localhost:8000/).
-
-### Development
-
-```bash
-cd dashboard
-npm run dev          # Starts dev server on http://localhost:3000
-```
-
-The dev server proxies API calls to the orchestrator at `http://localhost:8000`.
 
 ## The Agent Pipeline
 
@@ -159,12 +173,12 @@ Phase 2 -- AI-Powered Review:
 | `warm_pool/` | Container lifecycle manager (Firecracker + Docker backends) |
 | `agent_runner/` | AI agent loop (OpenCode, Goose, Copilot) with 9-step code and review pipelines |
 | `git_integration/` | GitHub + Bitbucket abstraction layer |
+| `dashboard/` | Next.js 16 + shadcn/ui Mission Control web dashboard (static export) |
 | `slack_bot/` | Slack bot with slash commands and mentions |
 | `tui/` | Terminal UI built with Bun + OpenTUI |
 | `gui/` | Desktop app built with Tauri + SolidJS (experimental) |
 | `mcp_toolshed/` | MCP tool server for agent extensions |
 | `ast_grep_rules/` | AST-based security scanning rules |
-| `dashboard/` | Next.js 16 + shadcn/ui web dashboard (static export) |
 | `demo_repo/` | Example repo with intentional bugs for testing |
 | `scripts/` | CLI tool |
 | `tests/` | Test suite (70+ tests) |
@@ -172,15 +186,17 @@ Phase 2 -- AI-Powered Review:
 ## API Reference
 
 ```
-POST   /api/tasks           Submit a new coding task
-GET    /api/tasks            List all tasks (paginated)
-GET    /api/tasks/{id}       Get task details + status
-DELETE /api/tasks/{id}       Cancel a running task
+POST   /api/tasks           Submit a new coding mission
+GET    /api/tasks            List all missions (paginated)
+GET    /api/tasks/{id}       Get mission details + status
+DELETE /api/tasks/{id}       Cancel a running mission
 GET    /api/tasks/{id}/log   Stream agent execution log
 GET    /api/pool/stats       Container pool statistics
 GET    /api/health           Health check
-WS     /ws/tasks/{id}        Real-time task updates via WebSocket
+WS     /ws/tasks/{id}        Real-time mission updates via WebSocket
 ```
+
+Interactive API documentation is available at **http://localhost:8000/docs** when the orchestrator is running.
 
 ## Configuration
 
@@ -190,22 +206,24 @@ Duckling uses [OpenCode](https://opencode.ai) as its default agent engine, which
 # Agent engine (default: opencode)
 AGENT_BACKEND=opencode
 
-# Option 1: OpenCode Zen (curated models, some free — no API key needed)
-OPENCODE_ZEN_API_KEY=your-zen-key
+# Option 1: OpenCode free models (no API key needed)
 OPENCODE_MODEL=opencode/big-pickle           # Free (limited time)
 OPENCODE_MODEL=opencode/kimi-k2.5-free       # Free (limited time)
-OPENCODE_MODEL=opencode/claude-sonnet-4-5    # Paid via Zen
 
-# Option 2: OpenRouter (access to many models)
+# Option 2: OpenCode Zen (curated paid models)
+OPENCODE_ZEN_API_KEY=your-zen-key
+OPENCODE_MODEL=opencode/claude-sonnet-4-5
+
+# Option 3: OpenRouter (access to many models)
 OPENAI_API_KEY=sk-or-v1-your-key
 OPENAI_HOST=https://openrouter.ai/api/
 OPENCODE_MODEL=deepseek/deepseek-chat-v3-0324
 
-# Option 3: Direct Anthropic
+# Option 4: Direct Anthropic
 ANTHROPIC_API_KEY=sk-ant-your-key
 OPENCODE_MODEL=anthropic/claude-sonnet-4-5
 
-# Option 4: Direct OpenAI
+# Option 5: Direct OpenAI
 OPENAI_API_KEY=sk-your-key
 OPENCODE_MODEL=openai/gpt-4o
 ```
@@ -216,11 +234,11 @@ Legacy engines (Goose, GitHub Copilot SDK) are still supported by setting `AGENT
 
 ```bash
 make install      # Install Python deps
-make test         # Run tests
+make test         # Run tests (70+ tests)
 make lint         # Run linter
 make typecheck    # Python type checking
-make tui          # Launch the TUI
-make dev          # Start with Docker Compose
+make start        # Start via ./start.sh
+make stop         # Stop via ./start.sh --stop
 make help         # See all targets
 ```
 
