@@ -1,0 +1,15 @@
+# Default owners for the entire repo
+* @t-rhex
+
+# Security-sensitive files require explicit review
+orchestrator/api/auth.py @t-rhex
+orchestrator/api/rate_limit.py @t-rhex
+orchestrator/services/config.py @t-rhex
+warm_pool/pool_manager.py @t-rhex
+.github/workflows/ @t-rhex
+
+# Docker and deployment
+Dockerfile @t-rhex
+Dockerfile.agent @t-rhex
+docker-compose.yml @t-rhex
+start.sh @t-rhex
