@@ -7,7 +7,9 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+import re
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class TaskStatus(str, Enum):
@@ -48,11 +50,33 @@ class TaskMode(str, Enum):
     )
 
 
+_ALLOWED_REPO_URL_RE = re.compile(
+    r"^https://(github\.com|bitbucket\.org)/[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+(\.git)?$"
+)
+
+
 class TaskCreate(BaseModel):
     """Request body for creating a new task."""
 
-    description: str = Field(..., min_length=10, max_length=2000)
+    description: str = Field(
+        ...,
+        min_length=20,
+        max_length=2000,
+        description="Task description (min 20 chars for accurate intent classification)",
+    )
     repo_url: str = Field(..., description="Git repo URL (GitHub or Bitbucket)")
+
+    @field_validator("repo_url")
+    @classmethod
+    def validate_repo_url(cls, v: str) -> str:
+        """Validate repo URL to prevent SSRF attacks."""
+        if not _ALLOWED_REPO_URL_RE.match(v):
+            raise ValueError(
+                "repo_url must be a valid GitHub or Bitbucket HTTPS URL "
+                "(e.g., https://github.com/org/repo)"
+            )
+        return v
+
     branch: str = Field(default="main", description="Base branch to diff against")
     target_branch: Optional[str] = Field(
         default=None, description="Branch to review (peer_review mode)"

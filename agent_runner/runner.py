@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import shlex
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -35,11 +36,21 @@ from typing import Any, Callable, Optional
 import structlog
 
 from agent_runner.engine import AgentEngine
+from git_integration.git_manager import redact_url
 from orchestrator.models.task import Task
 from orchestrator.models.vm import VM
 from warm_pool.pool_manager import VMBackendDriver
 
 logger = structlog.get_logger()
+
+_SAFE_BRANCH_RE = re.compile(r"^[a-zA-Z0-9._/\-]+$")
+
+
+def _validate_branch_name(name: str, label: str = "branch") -> str:
+    """Validate a git branch name to prevent injection."""
+    if not name or not _SAFE_BRANCH_RE.match(name):
+        raise ValueError(f"Invalid {label} name: {name!r}")
+    return name
 
 
 class StepType(str, Enum):
@@ -113,7 +124,31 @@ class AgentRunner:
         self.max_repair_iterations = max_repair_iterations
         self.on_step_complete = on_step_complete
 
-    async def run_review(self, task: Task, vm: VM, clone_url: str) -> AgentRunResult:
+    async def _setup_git_credentials(self, vm: VM, clone_url: str, creds: dict) -> None:
+        """Write git credentials to ~/.netrc inside the VM for auth without URL embedding.
+
+        This avoids embedding tokens in clone URLs which can leak into
+        logs, agent output, and API responses.
+        """
+        from urllib.parse import urlparse
+
+        username = creds.get("username", "")
+        password = creds.get("password", "")
+        if not username or not password:
+            return
+
+        host = urlparse(clone_url).hostname or ""
+        if not host:
+            return
+
+        netrc_line = f"machine {host} login {username} password {password}"
+        cmd = f'printf "%s\\n" {shlex.quote(netrc_line)} >> ~/.netrc && chmod 600 ~/.netrc'
+        await self.backend.exec_in_vm(vm, cmd, timeout=10)
+        await logger.adebug("Git credentials written to ~/.netrc", host=host)
+
+    async def run_review(
+        self, task: Task, vm: VM, clone_url: str, *, clone_creds: Optional[dict] = None
+    ) -> AgentRunResult:
         """
         Execute a CodeRabbit-style multi-pass review pipeline:
 
@@ -123,6 +158,7 @@ class AgentRunner:
         This produces a structured, thorough review by pre-processing the codebase
         deterministically before involving the LLM.
         """
+        _validate_branch_name(task.branch, "branch")
         start = time.monotonic()
         result = AgentRunResult(success=False)
         log_lines: list[str] = []
@@ -142,6 +178,8 @@ class AgentRunner:
 
             # ── Step 1: SETUP — clone repo ───────────────────────────────
             log("▶ Step 1/9: Cloning repository...")
+            if clone_creds:
+                await self._setup_git_credentials(vm, clone_url, clone_creds)
             setup_result = await self._step_setup_review(vm, clone_url, task.branch)
             result.steps.append(setup_result)
             await self._notify(setup_result)
@@ -162,14 +200,14 @@ class AgentRunner:
             deps_result = await self._step_dependency_analysis(vm)
             result.steps.append(deps_result)
             await self._notify(deps_result)
-            log(f"  ✓ Dependencies analyzed")
+            log("  ✓ Dependencies analyzed")
 
             # ── Step 4: CODE METRICS — lines, complexity, stats ──────────
             log("▶ Step 4/9: Computing code metrics...")
             metrics_result = await self._step_code_metrics(vm)
             result.steps.append(metrics_result)
             await self._notify(metrics_result)
-            log(f"  ✓ Code metrics computed")
+            log("  ✓ Code metrics computed")
 
             # ── Step 5: SECURITY SCAN — AST-based pattern matching ───────
             log("▶ Step 5/9: Running AST security scan...")
@@ -259,8 +297,15 @@ class AgentRunner:
 
         return result
 
-    async def run_peer_review(self, task: Task, vm: VM, clone_url: str) -> AgentRunResult:
+    async def run_peer_review(
+        self, task: Task, vm: VM, clone_url: str, *, clone_creds: Optional[dict] = None
+    ) -> AgentRunResult:
         """Execute a peer review: clone → diff target vs base → AI reviews the diff."""
+        _validate_branch_name(task.branch, "branch")
+        if not task.target_branch:
+            raise ValueError("target_branch is required for peer review")
+        _validate_branch_name(task.target_branch, "target_branch")
+        target_branch: str = task.target_branch  # narrowed from Optional[str]
         start = time.monotonic()
         result = AgentRunResult(success=False)
         log_lines: list[str] = []
@@ -271,26 +316,28 @@ class AgentRunner:
 
         try:
             log(f"🔧 Agent engine: {self.engine.name}")
-            log(f"📋 Mode: PEER REVIEW (diff {task.target_branch} vs {task.branch})")
+            log(f"📋 Mode: PEER REVIEW (diff {target_branch} vs {task.branch})")
 
             # ── Step 1: SETUP — clone and fetch both branches ──────────
             log("▶ Step 1/4: Cloning repository...")
+            if clone_creds:
+                await self._setup_git_credentials(vm, clone_url, clone_creds)
             setup_result = await self._step_setup_peer_review(
                 vm,
                 clone_url,
                 task.branch,
-                task.target_branch,
+                target_branch,
             )
             result.steps.append(setup_result)
             await self._notify(setup_result)
             if not setup_result.success:
                 result.error = f"Setup failed: {setup_result.error}"
                 return result
-            log(f"  ✓ Repo cloned, checked out '{task.target_branch}'")
+            log(f"  ✓ Repo cloned, checked out '{target_branch}'")
 
             # ── Step 2: Get the diff (deterministic) ───────────────────
-            log(f"▶ Step 2/4: Computing diff ({task.branch}..{task.target_branch})...")
-            diff_result = await self._step_get_diff(vm, task.branch, task.target_branch)
+            log(f"▶ Step 2/4: Computing diff ({task.branch}..{target_branch})...")
+            diff_result = await self._step_get_diff(vm, task.branch, target_branch)
             result.steps.append(diff_result)
             await self._notify(diff_result)
             if not diff_result.output.strip():
@@ -298,7 +345,7 @@ class AgentRunner:
                 result.success = True
                 log("")
                 log("═══ PEER REVIEW OUTPUT ═══")
-                log(f"No differences found between '{task.branch}' and '{task.target_branch}'.")
+                log(f"No differences found between '{task.branch}' and '{target_branch}'.")
                 return result
             diff_stats = diff_result.metadata.get("stats", "")
             log(f"  ✓ Diff computed ({diff_stats})")
@@ -342,8 +389,18 @@ class AgentRunner:
 
         return result
 
-    async def run(self, task: Task, vm: VM, clone_url: str, working_branch: str) -> AgentRunResult:
+    async def run(
+        self,
+        task: Task,
+        vm: VM,
+        clone_url: str,
+        working_branch: str,
+        *,
+        clone_creds: Optional[dict] = None,
+    ) -> AgentRunResult:
         """Execute the full agent loop for a task."""
+        _validate_branch_name(working_branch, "working_branch")
+        _validate_branch_name(task.branch, "branch")
         start = time.monotonic()
         result = AgentRunResult(success=False)
         log_lines: list[str] = []
@@ -357,6 +414,8 @@ class AgentRunner:
 
             # ── Step 1: SETUP (deterministic) ─────────────────────────
             log("▶ Step 1/8: Setting up workspace...")
+            if clone_creds:
+                await self._setup_git_credentials(vm, clone_url, clone_creds)
             setup_result = await self._step_setup(vm, clone_url, working_branch, task.branch)
             result.steps.append(setup_result)
             await self._notify(setup_result)
@@ -474,9 +533,9 @@ class AgentRunner:
         """Clone repo, create working branch, install deps."""
         start = time.monotonic()
         commands = [
-            f"git clone --depth=50 {clone_url} /workspace/repo",
+            f"git clone --depth=50 {shlex.quote(clone_url)} /workspace/repo",
             "cd /workspace/repo",
-            f"git checkout -b {branch} origin/{base_branch}",
+            f"git checkout -b {shlex.quote(branch)} origin/{shlex.quote(base_branch)}",
             "pip install -e '.[dev]' 2>/dev/null || pip install -r requirements.txt 2>/dev/null || true",
         ]
         exit_code, stdout, stderr = await self.backend.exec_in_vm(
@@ -485,8 +544,8 @@ class AgentRunner:
         return StepResult(
             step=StepType.SETUP,
             success=exit_code == 0,
-            output=stdout,
-            error=stderr if exit_code != 0 else "",
+            output=redact_url(stdout),
+            error=redact_url(stderr) if exit_code != 0 else "",
             duration_seconds=time.monotonic() - start,
         )
 
@@ -560,7 +619,7 @@ class AgentRunner:
             "cd /workspace/repo",
             "git add -A",
             f"git commit -m $'{commit_msg}'",
-            f"git push -u origin {branch}",
+            f"git push -u origin {shlex.quote(branch)}",
             "git rev-parse HEAD",
         ]
 
@@ -667,7 +726,7 @@ Fix the issues. Make minimal changes to resolve the failures while preserving th
         """Clone repo on the target branch (no working branch created)."""
         start = time.monotonic()
         commands = [
-            f"git clone --depth=50 -b {branch} {clone_url} /workspace/repo",
+            f"git clone --depth=50 -b {shlex.quote(branch)} {shlex.quote(clone_url)} /workspace/repo",
         ]
         exit_code, stdout, stderr = await self.backend.exec_in_vm(
             vm, " && ".join(commands), timeout=120
@@ -675,8 +734,8 @@ Fix the issues. Make minimal changes to resolve the failures while preserving th
         return StepResult(
             step=StepType.SETUP,
             success=exit_code == 0,
-            output=stdout,
-            error=stderr if exit_code != 0 else "",
+            output=redact_url(stdout),
+            error=redact_url(stderr) if exit_code != 0 else "",
             duration_seconds=time.monotonic() - start,
         )
 
@@ -935,7 +994,7 @@ Fix the issues. Make minimal changes to resolve the failures while preserving th
         for fpath in top_files[:15]:  # Cap at 15 files to fit context
             _, content, _ = await self.backend.exec_in_vm(
                 vm,
-                f"head -300 '/workspace/repo/{fpath}' 2>/dev/null || echo '[file not readable]'",
+                f"head -300 {shlex.quote('/workspace/repo/' + fpath)} 2>/dev/null || echo '[file not readable]'",
                 timeout=10,
             )
             if content.strip() and content.strip() != "[file not readable]":
@@ -1085,9 +1144,9 @@ Be specific, actionable, and constructive. Reference actual code.
         """Clone repo and checkout the target branch for peer review."""
         start = time.monotonic()
         commands = [
-            f"git clone {clone_url} /workspace/repo",
+            f"git clone {shlex.quote(clone_url)} /workspace/repo",
             "cd /workspace/repo",
-            f"git checkout {target_branch}",
+            f"git checkout {shlex.quote(target_branch)}",
         ]
         exit_code, stdout, stderr = await self.backend.exec_in_vm(
             vm,
@@ -1097,8 +1156,8 @@ Be specific, actionable, and constructive. Reference actual code.
         return StepResult(
             step=StepType.SETUP,
             success=exit_code == 0,
-            output=stdout,
-            error=stderr if exit_code != 0 else "",
+            output=redact_url(stdout),
+            error=redact_url(stderr) if exit_code != 0 else "",
             duration_seconds=time.monotonic() - start,
         )
 
@@ -1114,14 +1173,14 @@ Be specific, actionable, and constructive. Reference actual code.
         # Get diff stats
         _, stats_out, _ = await self.backend.exec_in_vm(
             vm,
-            f"cd /workspace/repo && git diff --stat origin/{base_branch}..{target_branch}",
+            f"cd /workspace/repo && git diff --stat origin/{shlex.quote(base_branch)}..{shlex.quote(target_branch)}",
             timeout=30,
         )
 
         # Get changed file list
         _, files_out, _ = await self.backend.exec_in_vm(
             vm,
-            f"cd /workspace/repo && git diff --name-only origin/{base_branch}..{target_branch}",
+            f"cd /workspace/repo && git diff --name-only origin/{shlex.quote(base_branch)}..{shlex.quote(target_branch)}",
             timeout=30,
         )
         files = [f.strip() for f in files_out.strip().split("\n") if f.strip()]
@@ -1129,7 +1188,7 @@ Be specific, actionable, and constructive. Reference actual code.
         # Get the actual diff (truncate to 15k chars to fit in LLM context)
         exit_code, diff_out, stderr = await self.backend.exec_in_vm(
             vm,
-            f"cd /workspace/repo && git diff origin/{base_branch}..{target_branch}",
+            f"cd /workspace/repo && git diff origin/{shlex.quote(base_branch)}..{shlex.quote(target_branch)}",
             timeout=30,
         )
 
@@ -1180,7 +1239,7 @@ Use commands like `cat /workspace/repo/<file>` to see the full file context arou
     async def _step_peer_review_feedback(self, task: Task) -> StepResult:
         """Generate structured peer review feedback."""
         start = time.monotonic()
-        prompt = f"""Based on your review, provide structured feedback the developer can act on.
+        prompt = """Based on your review, provide structured feedback the developer can act on.
 
 Format your response as:
 

@@ -101,7 +101,6 @@ async def handle_request(request: dict):
 
 async def main():
     """Run the MCP server, reading JSON-RPC messages from stdin."""
-    import asyncio
 
     for line in sys.stdin:
         line = line.strip()

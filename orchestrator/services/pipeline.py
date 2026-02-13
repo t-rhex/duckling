@@ -21,19 +21,64 @@ Each stage publishes events for real-time monitoring via WebSocket.
 from __future__ import annotations
 
 import asyncio
-import time
-from typing import Any, Callable, Optional
+import json
+from pathlib import Path
+from typing import Callable, Optional
 
 import structlog
 
 from agent_runner.engine import create_engine
-from agent_runner.runner import AgentRunner, StepResult
+from agent_runner.runner import AgentRunner
 from git_integration.git_manager import GitManager
 from orchestrator.models.task import Task, TaskMode, TaskStatus
 from orchestrator.services.config import get_settings
 from warm_pool.pool_manager import WarmPoolManager
 
 logger = structlog.get_logger()
+
+
+class TaskStore:
+    """Simple file-backed task persistence.
+
+    Writes task state to a JSON file so task history survives restarts.
+    Running tasks will still be lost, but completed/failed tasks are preserved.
+    """
+
+    def __init__(self, path: str = "/tmp/duckling-tasks.json"):
+        self._path = Path(path)
+        self._tasks: dict[str, Task] = {}
+        self._load()
+
+    def _load(self) -> None:
+        """Load tasks from disk."""
+        if self._path.exists():
+            try:
+                data = json.loads(self._path.read_text())
+                for item in data:
+                    task = Task(**item)
+                    self._tasks[task.id] = task
+                logger.info("Loaded tasks from disk", count=len(self._tasks))
+            except Exception as e:
+                logger.warning("Failed to load task store", error=str(e))
+
+    def save(self, task: Task) -> None:
+        """Save a task to the store."""
+        self._tasks[task.id] = task
+        self._flush()
+
+    def get(self, task_id: str) -> Optional[Task]:
+        return self._tasks.get(task_id)
+
+    def all_tasks(self) -> dict[str, Task]:
+        return self._tasks
+
+    def _flush(self) -> None:
+        """Write all tasks to disk."""
+        try:
+            data = [t.model_dump(mode="json") for t in self._tasks.values()]
+            self._path.write_text(json.dumps(data, default=str))
+        except Exception as e:
+            logger.warning("Failed to flush task store", error=str(e))
 
 
 class TaskPipeline:
@@ -88,6 +133,9 @@ class TaskPipeline:
 
             # ── Phase 2: Get clone URL (no branch creation) ───────
             clone_url = await self.git.get_clone_url(task.repo_url, task.git_provider)
+            clone_creds = self.git.get_clone_credentials(
+                provider=task.git_provider, repo_url=task.repo_url
+            )
 
             # ── Phase 3: Run review-only agent ────────────────────
             await self._update_status(task, TaskStatus.RUNNING)
@@ -96,15 +144,19 @@ class TaskPipeline:
             settings = get_settings()
             engine = create_engine(settings.agent_backend)
 
+            async def _task_step_callback_review(step_result):
+                if self.on_step_complete:
+                    await self.on_step_complete(task.id, step_result)
+
             runner = AgentRunner(
                 backend=self.pool.backend,
                 engine=engine,
                 max_repair_iterations=0,
-                on_step_complete=self.on_step_complete,
+                on_step_complete=_task_step_callback_review,
             )
 
             result = await asyncio.wait_for(
-                runner.run_review(task, vm, clone_url),
+                runner.run_review(task, vm, clone_url, clone_creds=clone_creds),
                 timeout=task.timeout_seconds,
             )
 
@@ -132,8 +184,12 @@ class TaskPipeline:
             await logger.ainfo(
                 "Review completed",
                 task_id=task.id,
-                duration_s=round(task.duration_seconds, 1),
+                duration_s=round(task.duration_seconds or 0, 1),
             )
+
+        except asyncio.CancelledError:
+            task.status = TaskStatus.CANCELLED
+            await logger.ainfo("Review cancelled", task_id=task.id)
 
         except asyncio.TimeoutError:
             task.mark_failed(f"Review timed out after {task.timeout_seconds}s")
@@ -173,6 +229,9 @@ class TaskPipeline:
 
             # ── Phase 2: Get clone URL (no branch creation) ───────
             clone_url = await self.git.get_clone_url(task.repo_url, task.git_provider)
+            clone_creds = self.git.get_clone_credentials(
+                provider=task.git_provider, repo_url=task.repo_url
+            )
 
             # ── Phase 3: Run peer review agent ────────────────────
             await self._update_status(task, TaskStatus.RUNNING)
@@ -181,15 +240,19 @@ class TaskPipeline:
             settings = get_settings()
             engine = create_engine(settings.agent_backend)
 
+            async def _task_step_callback_peer(step_result):
+                if self.on_step_complete:
+                    await self.on_step_complete(task.id, step_result)
+
             runner = AgentRunner(
                 backend=self.pool.backend,
                 engine=engine,
                 max_repair_iterations=0,
-                on_step_complete=self.on_step_complete,
+                on_step_complete=_task_step_callback_peer,
             )
 
             result = await asyncio.wait_for(
-                runner.run_peer_review(task, vm, clone_url),
+                runner.run_peer_review(task, vm, clone_url, clone_creds=clone_creds),
                 timeout=task.timeout_seconds,
             )
 
@@ -218,8 +281,12 @@ class TaskPipeline:
             await logger.ainfo(
                 "Peer review completed",
                 task_id=task.id,
-                duration_s=round(task.duration_seconds, 1),
+                duration_s=round(task.duration_seconds or 0, 1),
             )
+
+        except asyncio.CancelledError:
+            task.status = TaskStatus.CANCELLED
+            await logger.ainfo("Peer review cancelled", task_id=task.id)
 
         except asyncio.TimeoutError:
             task.mark_failed(f"Peer review timed out after {task.timeout_seconds}s")
@@ -251,6 +318,9 @@ class TaskPipeline:
 
             # ── Phase 2: Setup git branch ─────────────────────────
             clone_url = await self.git.get_clone_url(task.repo_url, task.git_provider)
+            clone_creds = self.git.get_clone_credentials(
+                provider=task.git_provider, repo_url=task.repo_url
+            )
             working_branch = f"duckling/{task.id[:8]}"
             task.working_branch = working_branch
 
@@ -271,15 +341,19 @@ class TaskPipeline:
             settings = get_settings()
             engine = create_engine(settings.agent_backend)
 
+            async def _task_step_callback_code(step_result):
+                if self.on_step_complete:
+                    await self.on_step_complete(task.id, step_result)
+
             runner = AgentRunner(
                 backend=self.pool.backend,
                 engine=engine,
                 max_repair_iterations=5,
-                on_step_complete=self.on_step_complete,
+                on_step_complete=_task_step_callback_code,
             )
 
             result = await asyncio.wait_for(
-                runner.run(task, vm, clone_url, working_branch),
+                runner.run(task, vm, clone_url, working_branch, clone_creds=clone_creds),
                 timeout=task.timeout_seconds,
             )
 
@@ -313,8 +387,12 @@ class TaskPipeline:
                 "Task completed successfully",
                 task_id=task.id,
                 pr_url=pr_result.pr_url,
-                duration_s=round(task.duration_seconds, 1),
+                duration_s=round(task.duration_seconds or 0, 1),
             )
+
+        except asyncio.CancelledError:
+            task.status = TaskStatus.CANCELLED
+            await logger.ainfo("Task cancelled", task_id=task.id)
 
         except asyncio.TimeoutError:
             task.mark_failed(f"Task timed out after {task.timeout_seconds}s")
@@ -373,7 +451,11 @@ class TaskQueue:
         self._queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
         self._active: dict[str, asyncio.Task] = {}
         self._tasks: dict[str, Task] = {}
+        self._tasks_lock = asyncio.Lock()
         self._running = False
+        self._store = TaskStore()
+        # Restore previously saved tasks
+        self._tasks.update(self._store.all_tasks())
 
     async def start(self):
         """Start processing tasks from the queue."""
@@ -382,35 +464,84 @@ class TaskQueue:
         await logger.ainfo("Task queue started", max_concurrent=self.max_concurrent)
 
     async def stop(self):
+        """Stop the task queue, cancelling active tasks and awaiting cleanup."""
         self._running = False
+        # Cancel the processing loop
+        if hasattr(self, "_loop_task") and self._loop_task:
+            self._loop_task.cancel()
+            try:
+                await self._loop_task
+            except asyncio.CancelledError:
+                pass
+        # Cancel all active tasks and wait for their finally blocks
         for task in self._active.values():
             task.cancel()
+        if self._active:
+            await asyncio.gather(*self._active.values(), return_exceptions=True)
+        await logger.ainfo("Task queue stopped", active_cancelled=len(self._active))
 
     async def submit(self, task: Task) -> Task:
         """Submit a task to the queue."""
-        self._tasks[task.id] = task
+        async with self._tasks_lock:
+            self._tasks[task.id] = task
+        self._store.save(task)
         priority = {"critical": 0, "high": 1, "medium": 2, "low": 3}
         await self._queue.put((priority.get(task.priority.value, 2), task.id))
         await logger.ainfo("Task queued", task_id=task.id, priority=task.priority)
         return task
 
-    def get_task(self, task_id: str) -> Optional[Task]:
-        return self._tasks.get(task_id)
+    async def cancel_task(self, task_id: str) -> bool:
+        """Cancel a running or pending task.
 
-    def list_tasks(self, page: int = 1, per_page: int = 20) -> tuple[list[Task], int]:
-        all_tasks = sorted(self._tasks.values(), key=lambda t: t.created_at, reverse=True)
-        total = len(all_tasks)
-        start = (page - 1) * per_page
-        return all_tasks[start : start + per_page], total
+        If the task has an active asyncio.Task, cancels it — which raises
+        CancelledError inside the pipeline, triggering the finally block
+        that releases the VM.  Returns True if the task was found and
+        cancelled.
+        """
+        async with self._tasks_lock:
+            task = self._tasks.get(task_id)
+        if not task:
+            return False
+
+        # Cancel the asyncio task if it's actively running
+        async_task = self._active.get(task_id)
+        if async_task and not async_task.done():
+            async_task.cancel()
+            await logger.ainfo("Asyncio task cancelled", task_id=task_id)
+
+        # Mark the domain task as cancelled (the pipeline's CancelledError
+        # handler will also do this, but we set it eagerly for immediate
+        # visibility in the API response).
+        task.status = TaskStatus.CANCELLED
+        return True
+
+    async def get_task(self, task_id: str) -> Optional[Task]:
+        async with self._tasks_lock:
+            return self._tasks.get(task_id)
+
+    async def list_tasks(self, page: int = 1, per_page: int = 20) -> tuple[list[Task], int]:
+        async with self._tasks_lock:
+            all_tasks = sorted(self._tasks.values(), key=lambda t: t.created_at, reverse=True)
+            total = len(all_tasks)
+            start = (page - 1) * per_page
+            return all_tasks[start : start + per_page], total
 
     async def _process_loop(self):
         """Main loop that pulls tasks and dispatches them."""
         while self._running:
             try:
-                # Clean up completed tasks
+                # Clean up completed tasks and retrieve results to surface exceptions
                 done = [tid for tid, t in self._active.items() if t.done()]
                 for tid in done:
+                    try:
+                        self._active[tid].result()
+                    except Exception as e:
+                        await logger.aerror("Unhandled task exception", task_id=tid, error=str(e))
                     del self._active[tid]
+                    # Persist final task state
+                    task = self._tasks.get(tid)
+                    if task:
+                        self._store.save(task)
 
                 # Check capacity
                 if len(self._active) >= self.max_concurrent:
@@ -423,7 +554,8 @@ class TaskQueue:
                 except asyncio.TimeoutError:
                     continue
 
-                task = self._tasks.get(task_id)
+                async with self._tasks_lock:
+                    task = self._tasks.get(task_id)
                 if not task:
                     continue
 

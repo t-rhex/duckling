@@ -35,12 +35,11 @@ docker-compose.yml
 
 # Env files (secrets)
 .env
-.env.local
+.env.*
+!.env.example
 
 # Misc
 LICENSE
 .github/
 demo_repo/
-README.md
-CONTRIBUTING.md
-CHANGELOG.md
+*.md

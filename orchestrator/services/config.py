@@ -19,6 +19,7 @@ class Settings(BaseModel):
     env: str = os.getenv("DUCKLING_ENV", "development")
     log_level: str = os.getenv("DUCKLING_LOG_LEVEL", "DEBUG")
     secret_key: str = os.getenv("DUCKLING_SECRET_KEY", "dev-secret-key")
+    api_key: str = os.getenv("DUCKLING_API_KEY", "")
     host: str = os.getenv("DUCKLING_HOST", "0.0.0.0")
     port: int = int(os.getenv("DUCKLING_PORT", "8000"))
 
@@ -91,6 +92,40 @@ class Settings(BaseModel):
     @property
     def is_production(self) -> bool:
         return self.env == "production"
+
+    def validate_production_settings(self) -> list[str]:
+        """Return warnings for insecure settings in production."""
+        warnings: list[str] = []
+        if self.is_production:
+            if self.secret_key in ("dev-secret-key", "change-me-in-production"):
+                warnings.append("DUCKLING_SECRET_KEY is set to an insecure default")
+            if not self.api_key:
+                warnings.append("DUCKLING_API_KEY is not set — API is unauthenticated")
+        return warnings
+
+    def validate_required_keys(self) -> list[str]:
+        """Check that required API keys are configured for the selected backend.
+
+        Returns a list of warning messages for missing configuration.
+        """
+        warnings: list[str] = []
+
+        # Check agent backend keys
+        if self.agent_backend == "opencode":
+            # OpenCode can use free models via Zen, so missing keys are not fatal
+            pass
+        elif self.agent_backend == "goose":
+            if not self.openai_api_key and not self.anthropic_api_key:
+                warnings.append("GOOSE backend requires OPENAI_API_KEY or ANTHROPIC_API_KEY")
+        elif self.agent_backend == "copilot":
+            if not self.openai_api_key:
+                warnings.append("COPILOT backend requires OPENAI_API_KEY")
+
+        # Check git provider keys
+        if not self.github_token:
+            warnings.append("GITHUB_TOKEN is not set — GitHub operations will fail")
+
+        return warnings
 
 
 @lru_cache

@@ -11,6 +11,7 @@ Wires together:
 
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 
 import structlog
@@ -62,13 +63,24 @@ async def lifespan(app: FastAPI):
             }.get(task.status.value)
             if status_msg:
                 await slack_bot.post_task_update(task, status_msg)
+            # Post PR notification when task completes with a PR URL
+            if task.status.value == "completed" and task.pr_url:
+                try:
+                    await slack_bot.post_pr_notification(task)
+                except Exception as e:
+                    await logger.awarning(
+                        "Failed to post PR notification to Slack",
+                        task_id=task.id,
+                        error=str(e),
+                    )
 
-    async def on_step_complete(step_result):
+    async def on_step_complete(task_id: str, step_result):
         """Push step-level updates to WebSocket clients."""
         await broadcast_task_update(
-            "*",
+            task_id,
             {
                 "event": "step_complete",
+                "task_id": task_id,
                 "step": step_result.step.value,
                 "success": step_result.success,
                 "duration": step_result.duration_seconds,
@@ -101,6 +113,16 @@ async def lifespan(app: FastAPI):
     await pool_manager.start()
     await task_queue.start()
 
+    # ── Production safety checks ─────────────────────────────────
+    warnings = settings.validate_production_settings()
+    for w in warnings:
+        await logger.awarning(w)
+
+    # ── Required API key checks ───────────────────────────────────
+    config_warnings = settings.validate_required_keys()
+    for w in config_warnings:
+        await logger.awarning("Configuration warning", message=w)
+
     await logger.ainfo(
         "Duckling started",
         env=settings.env,
@@ -114,13 +136,12 @@ async def lifespan(app: FastAPI):
     # Shutdown
     await task_queue.stop()
     await pool_manager.stop()
+    await git_manager.close()
     await logger.ainfo("Duckling shut down")
 
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
-    settings = get_settings()
-
     app = FastAPI(
         title="Duckling",
         description="Duckling — autonomous coding agent platform (inspired by Stripe Minions)",
@@ -128,13 +149,16 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS
+    # CORS — restrict origins; override with DUCKLING_CORS_ORIGINS env var
+    allowed_origins = os.getenv(
+        "DUCKLING_CORS_ORIGINS", "http://localhost:3000,http://localhost:8000"
+    ).split(",")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=allowed_origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"],
     )
 
     # API routes

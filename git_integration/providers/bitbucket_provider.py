@@ -25,6 +25,12 @@ class BitbucketProvider(GitProvider):
         self.base_url = "https://api.bitbucket.org/2.0"
         self._client: Optional[httpx.AsyncClient] = None
 
+    async def close(self) -> None:
+        """Close the HTTP client to release resources."""
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
+
     @property
     def client(self) -> httpx.AsyncClient:
         if self._client is None:
@@ -35,7 +41,9 @@ class BitbucketProvider(GitProvider):
             )
         return self._client
 
-    async def create_branch(self, repo: str, branch_name: str, from_branch: str = "main") -> BranchInfo:
+    async def create_branch(
+        self, repo: str, branch_name: str, from_branch: str = "main"
+    ) -> BranchInfo:
         # Get the SHA of the base branch
         resp = await self.client.get(f"/repositories/{repo}/refs/branches/{from_branch}")
         resp.raise_for_status()
@@ -111,4 +119,11 @@ class BitbucketProvider(GitProvider):
         return resp.json()["mainbranch"]["name"]
 
     async def get_clone_url(self, repo: str) -> str:
-        return f"https://{self.username}:{self.app_password}@bitbucket.org/{repo}.git"
+        """Return a plain HTTPS clone URL without embedded credentials."""
+        return f"https://bitbucket.org/{repo}.git"
+
+    def get_credentials(self) -> dict:
+        """Return credentials for git authentication (never embed in URLs)."""
+        if self.username and self.app_password:
+            return {"username": self.username, "password": self.app_password}
+        return {}

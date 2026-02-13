@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json as _json
+import shlex
 
 import structlog
 from pydantic import BaseModel, Field
@@ -92,7 +93,7 @@ def make_copilot_tools(backend: VMBackendDriver, vm: VM) -> list:
     )
     async def read_file(params: ReadFileParams) -> str:
         exit_code, stdout, stderr = await backend.exec_in_vm(
-            vm, f"cat '{params.path}'", timeout=10
+            vm, f"cat {shlex.quote(params.path)}", timeout=10
         )
         if exit_code != 0:
             return f"Error reading {params.path}: {stderr}"
@@ -107,11 +108,12 @@ def make_copilot_tools(backend: VMBackendDriver, vm: VM) -> list:
     async def write_file(params: WriteFileParams) -> str:
         # Use python inside the VM to write files safely (avoids shell escaping)
         escaped_content = _json.dumps(params.content)
-        cmd = (
-            f"python3 -c \"import json; "
+        py_script = (
+            f"import json; "
             f"content = json.loads({repr(escaped_content)}); "
-            f"open('{params.path}', 'w').write(content)\""
+            f"open({repr(params.path)}, 'w').write(content)"
         )
+        cmd = f"python3 -c {shlex.quote(py_script)}"
         exit_code, stdout, stderr = await backend.exec_in_vm(vm, cmd, timeout=10)
         if exit_code != 0:
             return f"Error writing {params.path}: {stderr}"
@@ -120,7 +122,7 @@ def make_copilot_tools(backend: VMBackendDriver, vm: VM) -> list:
     @define_tool(description="List files and directories in a given path inside the workspace VM.")
     async def list_directory(params: ListDirectoryParams) -> str:
         exit_code, stdout, stderr = await backend.exec_in_vm(
-            vm, f"ls -la '{params.path}'", timeout=10
+            vm, f"ls -la {shlex.quote(params.path)}", timeout=10
         )
         if exit_code != 0:
             return f"Error listing {params.path}: {stderr}"

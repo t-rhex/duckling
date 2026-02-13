@@ -31,7 +31,7 @@ services:
       - OPENCODE_MODEL=${OPENCODE_MODEL:-}
       - OPENCODE_ZEN_API_KEY=${OPENCODE_ZEN_API_KEY:-}
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Read-only; consider docker-socket-proxy in production
       - ./dashboard/out:/app/dashboard/out
     depends_on:
       - redis
