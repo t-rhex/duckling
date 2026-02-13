@@ -14,39 +14,13 @@ import pytest
 from orchestrator.models.task import Task, TaskStatus
 from orchestrator.models.vm import VM, VMBackend, VMState
 
+# Import the shared FakeBackend from conftest
+from tests.conftest import FakeBackend
+
 
 # ---------------------------------------------------------------------------
-# Helpers — lightweight fakes that don't need Docker or Firecracker
+# Helpers
 # ---------------------------------------------------------------------------
-
-
-class FakeBackend:
-    """A backend that records calls instead of touching containers."""
-
-    def __init__(self):
-        self.created: list[VM] = []
-        self.warmed: list[VM] = []
-        self.destroyed: list[VM] = []
-
-    async def create_vm(self, vm: VM) -> VM:
-        vm.state = VMState.WARMING
-        self.created.append(vm)
-        return vm
-
-    async def warm_vm(self, vm, repo_url=None):
-        vm.state = VMState.READY
-        self.warmed.append(vm)
-        return vm
-
-    async def destroy_vm(self, vm: VM) -> None:
-        vm.state = VMState.DESTROYED
-        self.destroyed.append(vm)
-
-    async def exec_in_vm(self, vm, command, timeout=120):
-        return (0, "", "")
-
-    async def health_check(self, vm):
-        return True
 
 
 def _make_pool(backend=None, target_size=2):

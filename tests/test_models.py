@@ -45,7 +45,7 @@ class TestTaskModel:
 
     def test_task_create_validation(self):
         body = TaskCreate(
-            description="Add retry logic",
+            description="Add retry logic to the payment service webhook handler",
             repo_url="https://github.com/example-org/payment-service",
             priority=TaskPriority.HIGH,
             labels=["bug", "agent-fix"],

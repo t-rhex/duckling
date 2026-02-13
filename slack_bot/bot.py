@@ -22,7 +22,14 @@ import structlog
 from slack_bolt.async_app import AsyncApp
 from slack_sdk.web.async_client import AsyncWebClient
 
-from orchestrator.models.task import GitProvider, Task, TaskCreate, TaskMode, TaskPriority, TaskSource
+from orchestrator.models.task import (
+    GitProvider,
+    Task,
+    TaskCreate,
+    TaskMode,
+    TaskPriority,
+    TaskSource,
+)
 from orchestrator.services.config import get_settings
 from orchestrator.services.intent import classify_intent
 
@@ -115,7 +122,11 @@ class DucklingSlackBot:
                             {
                                 "type": "mrkdwn",
                                 "text": "I'll update this thread as I work."
-                                + (" A PR will appear when I'm done." if resolved_mode == TaskMode.CODE else ""),
+                                + (
+                                    " A PR will appear when I'm done."
+                                    if resolved_mode == TaskMode.CODE
+                                    else ""
+                                ),
                             }
                         ],
                     },
@@ -209,7 +220,7 @@ class DucklingSlackBot:
                 await say(text="No task queue connected.")
                 return
 
-            tasks, total = self.task_queue.list_tasks(page=1, per_page=5)
+            tasks, total = await self.task_queue.list_tasks(page=1, per_page=5)
             if not tasks:
                 await say(text="No active ducklings right now.")
                 return
@@ -262,6 +273,12 @@ class DucklingSlackBot:
         if branch_match:
             params["branch"] = branch_match.group(1)
             text = text[: branch_match.start()] + text[branch_match.end() :]
+
+        # Extract --target-branch flag
+        target_branch_match = re.search(r"--target-branch\s+(\S+)", text)
+        if target_branch_match:
+            params["target_branch"] = target_branch_match.group(1)
+            text = text[: target_branch_match.start()] + text[target_branch_match.end() :]
 
         # Extract --priority flag
         priority_match = re.search(r"--priority\s+(low|medium|high|critical)", text)

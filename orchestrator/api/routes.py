@@ -14,10 +14,14 @@ Endpoints:
 
 from __future__ import annotations
 
+import asyncio
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
+import structlog
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 
+from orchestrator.api.auth import require_api_key
+from orchestrator.api.rate_limit import rate_limit
 from orchestrator.models.task import (
     Task,
     TaskCreate,
@@ -27,14 +31,49 @@ from orchestrator.models.task import (
     TaskStatus,
 )
 from orchestrator.models.vm import WarmPoolStats
+from orchestrator.services.config import get_settings
 from orchestrator.services.intent import classify_intent
+
+logger = structlog.get_logger()
 
 router = APIRouter()
 
 # These will be injected by the app factory
 _task_queue = None
 _pool_manager = None
-_ws_connections: dict[str, list[WebSocket]] = {}
+
+# WebSocket connection management
+_ws_lock = asyncio.Lock()
+_ws_connections: dict[str, set[WebSocket]] = {}
+_MAX_WS_PER_TASK = 10
+_MAX_WS_GLOBAL = 100
+_ws_count = 0
+
+
+async def _ws_add(task_id: str, ws: WebSocket) -> bool:
+    """Add a WebSocket connection. Returns False if limits exceeded."""
+    global _ws_count
+    async with _ws_lock:
+        if _ws_count >= _MAX_WS_GLOBAL:
+            return False
+        conns = _ws_connections.setdefault(task_id, set())
+        if len(conns) >= _MAX_WS_PER_TASK:
+            return False
+        conns.add(ws)
+        _ws_count += 1
+        return True
+
+
+async def _ws_remove(task_id: str, ws: WebSocket) -> None:
+    """Remove a WebSocket connection."""
+    global _ws_count
+    async with _ws_lock:
+        conns = _ws_connections.get(task_id)
+        if conns and ws in conns:
+            conns.discard(ws)
+            _ws_count -= 1
+            if not conns:
+                del _ws_connections[task_id]
 
 
 def set_dependencies(task_queue, pool_manager):
@@ -47,7 +86,11 @@ def set_dependencies(task_queue, pool_manager):
 
 
 @router.post("/api/tasks", response_model=TaskResponse, status_code=201)
-async def create_task(body: TaskCreate):
+async def create_task(
+    body: TaskCreate,
+    _api_key: str = Depends(require_api_key),
+    _rate: None = Depends(rate_limit),
+):
     """Submit a new coding task to the duckling queue.
 
     If `mode` is omitted, the system auto-infers intent from the description:
@@ -127,12 +170,13 @@ def _task_to_response(
 async def list_tasks(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
+    _api_key: str = Depends(require_api_key),
 ):
     """List all tasks with pagination."""
     if _task_queue is None:
         raise HTTPException(status_code=503, detail="Task queue not initialized")
 
-    tasks, total = _task_queue.list_tasks(page=page, per_page=per_page)
+    tasks, total = await _task_queue.list_tasks(page=page, per_page=per_page)
 
     return TaskListResponse(
         tasks=[_task_to_response(t) for t in tasks],
@@ -143,12 +187,12 @@ async def list_tasks(
 
 
 @router.get("/api/tasks/{task_id}", response_model=TaskResponse)
-async def get_task(task_id: str):
+async def get_task(task_id: str, _api_key: str = Depends(require_api_key)):
     """Get details for a specific task."""
     if _task_queue is None:
         raise HTTPException(status_code=503, detail="Task queue not initialized")
 
-    task = _task_queue.get_task(task_id)
+    task = await _task_queue.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -156,7 +200,7 @@ async def get_task(task_id: str):
 
 
 @router.delete("/api/tasks/{task_id}")
-async def cancel_task(task_id: str):
+async def cancel_task(task_id: str, _api_key: str = Depends(require_api_key)):
     """Cancel a running or pending task.
 
     This cancels the underlying asyncio task (if running), which raises
@@ -166,7 +210,7 @@ async def cancel_task(task_id: str):
     if _task_queue is None:
         raise HTTPException(status_code=503, detail="Task queue not initialized")
 
-    task = _task_queue.get_task(task_id)
+    task = await _task_queue.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -178,12 +222,12 @@ async def cancel_task(task_id: str):
 
 
 @router.get("/api/tasks/{task_id}/log")
-async def get_task_log(task_id: str):
+async def get_task_log(task_id: str, _api_key: str = Depends(require_api_key)):
     """Get the agent execution log for a task."""
     if _task_queue is None:
         raise HTTPException(status_code=503, detail="Task queue not initialized")
 
-    task = _task_queue.get_task(task_id)
+    task = await _task_queue.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -194,11 +238,11 @@ async def get_task_log(task_id: str):
 
 
 @router.get("/api/pool/stats", response_model=WarmPoolStats)
-async def pool_stats():
+async def pool_stats(_api_key: str = Depends(require_api_key)):
     """Get warm pool statistics."""
     if _pool_manager is None:
         raise HTTPException(status_code=503, detail="Pool manager not initialized")
-    return _pool_manager.get_stats()
+    return await _pool_manager.get_stats()
 
 
 # ── Health check ──────────────────────────────────────────────────
@@ -207,7 +251,7 @@ async def pool_stats():
 @router.get("/api/health")
 async def health_check():
     """System health check."""
-    pool_stats_data = _pool_manager.get_stats() if _pool_manager else None
+    pool_stats_data = await _pool_manager.get_stats() if _pool_manager else None
     return {
         "status": "healthy",
         "pool": pool_stats_data.model_dump() if pool_stats_data else None,
@@ -220,12 +264,31 @@ async def health_check():
 
 @router.websocket("/ws/tasks/{task_id}")
 async def task_websocket(websocket: WebSocket, task_id: str):
-    """WebSocket endpoint for real-time task updates."""
+    """WebSocket endpoint for real-time task updates.
+
+    Authentication is performed via the ``token`` query parameter since
+    WebSocket connections do not support Authorization headers easily.
+    If DUCKLING_API_KEY is set, the client must pass ``?token=<key>``.
+    """
+    # Validate task exists (if queue is available)
+    if _task_queue:
+        task = await _task_queue.get_task(task_id)
+        if not task:
+            await websocket.close(code=4004, reason="Task not found")
+            return
+
+    # Optional auth via query param
+    token = websocket.query_params.get("token")
+    settings = get_settings()
+    if settings.api_key and token != settings.api_key:
+        await websocket.close(code=4001, reason="Unauthorized")
+        return
+
     await websocket.accept()
 
-    if task_id not in _ws_connections:
-        _ws_connections[task_id] = []
-    _ws_connections[task_id].append(websocket)
+    if not await _ws_add(task_id, websocket):
+        await websocket.close(code=4029, reason="Too many connections")
+        return
 
     try:
         while True:
@@ -234,16 +297,32 @@ async def task_websocket(websocket: WebSocket, task_id: str):
             if data == "ping":
                 await websocket.send_text("pong")
     except WebSocketDisconnect:
-        _ws_connections[task_id].remove(websocket)
-        if not _ws_connections[task_id]:
-            del _ws_connections[task_id]
+        pass
+    finally:
+        await _ws_remove(task_id, websocket)
 
 
 async def broadcast_task_update(task_id: str, data: dict):
     """Broadcast an update to all WebSocket clients watching a task."""
-    connections = _ws_connections.get(task_id, [])
+    async with _ws_lock:
+        connections = list(_ws_connections.get(task_id, set()))
+
+    broken: list[WebSocket] = []
     for ws in connections:
         try:
             await ws.send_json(data)
         except Exception:
-            pass
+            broken.append(ws)
+            await logger.adebug("Removing broken WebSocket", task_id=task_id)
+
+    if broken:
+        global _ws_count
+        async with _ws_lock:
+            conns = _ws_connections.get(task_id)
+            if conns:
+                for ws in broken:
+                    if ws in conns:
+                        conns.discard(ws)
+                        _ws_count -= 1
+                if not conns:
+                    del _ws_connections[task_id]

@@ -10,6 +10,7 @@ from typing import Optional
 @dataclass
 class PRResult:
     """Result of creating a pull request."""
+
     pr_url: str
     pr_number: int
     title: str
@@ -20,6 +21,7 @@ class PRResult:
 @dataclass
 class BranchInfo:
     """Info about a branch."""
+
     name: str
     sha: str
     is_default: bool
@@ -29,7 +31,9 @@ class GitProvider(ABC):
     """Abstract interface for Git hosting providers."""
 
     @abstractmethod
-    async def create_branch(self, repo: str, branch_name: str, from_branch: str = "main") -> BranchInfo:
+    async def create_branch(
+        self, repo: str, branch_name: str, from_branch: str = "main"
+    ) -> BranchInfo:
         """Create a new branch from a base branch."""
         ...
 
@@ -59,5 +63,13 @@ class GitProvider(ABC):
 
     @abstractmethod
     async def get_clone_url(self, repo: str) -> str:
-        """Get the authenticated clone URL for a repo."""
+        """Get a clone URL for a repo (without embedded credentials)."""
         ...
+
+    def get_credentials(self) -> dict:
+        """Return credentials for git authentication (never embed in URLs).
+
+        Returns a dict with 'username' and 'password' keys, or an empty
+        dict if no credentials are configured (e.g. public repos).
+        """
+        return {}

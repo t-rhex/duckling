@@ -24,6 +24,12 @@ class GitHubProvider(GitProvider):
         self.base_url = "https://api.github.com"
         self._client: Optional[httpx.AsyncClient] = None
 
+    async def close(self) -> None:
+        """Close the HTTP client to release resources."""
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
+
     @property
     def client(self) -> httpx.AsyncClient:
         if self._client is None:
@@ -38,7 +44,9 @@ class GitHubProvider(GitProvider):
             )
         return self._client
 
-    async def create_branch(self, repo: str, branch_name: str, from_branch: str = "main") -> BranchInfo:
+    async def create_branch(
+        self, repo: str, branch_name: str, from_branch: str = "main"
+    ) -> BranchInfo:
         # Get the SHA of the base branch
         resp = await self.client.get(f"/repos/{repo}/git/ref/heads/{from_branch}")
         resp.raise_for_status()
@@ -51,7 +59,9 @@ class GitHubProvider(GitProvider):
         )
         resp.raise_for_status()
 
-        await logger.ainfo("GitHub branch created", repo=repo, branch=branch_name, base_sha=base_sha[:8])
+        await logger.ainfo(
+            "GitHub branch created", repo=repo, branch=branch_name, base_sha=base_sha[:8]
+        )
         return BranchInfo(name=branch_name, sha=base_sha, is_default=False)
 
     async def create_pull_request(
@@ -121,4 +131,11 @@ class GitHubProvider(GitProvider):
         return resp.json()["default_branch"]
 
     async def get_clone_url(self, repo: str) -> str:
-        return f"https://x-access-token:{self.token}@github.com/{repo}.git"
+        """Return a plain HTTPS clone URL without embedded credentials."""
+        return f"https://github.com/{repo}.git"
+
+    def get_credentials(self) -> dict:
+        """Return credentials for git authentication (never embed in URLs)."""
+        if self.token:
+            return {"username": "x-access-token", "password": self.token}
+        return {}

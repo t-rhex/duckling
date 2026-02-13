@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 
 import httpx
 import structlog
@@ -250,42 +251,50 @@ class OpenCodeEngine(AgentEngine):
 
     # ── Private helpers ──────────────────────────────────────────────
 
+    @staticmethod
+    def _read_secret_shell(name: str) -> str:
+        """Return a shell snippet that reads a secret from /run/secrets/.
+
+        This is used to build export statements that read keys from
+        mounted secret files instead of embedding them as literals in
+        shell commands.  The files are mounted read-only into the
+        container by the pool manager.
+        """
+        return f"$(cat /run/secrets/{name} 2>/dev/null)"
+
     def _build_env_exports(self, settings) -> str:
         """Build shell export statements for the OpenCode server process.
+
+        Secrets are read from /run/secrets/ files (mounted by the pool
+        manager) rather than from container environment variables.  This
+        prevents API keys from being visible via ``env`` / ``printenv``.
 
         NOTE: We only pass provider-native API keys. The OpenRouter key
         (OPENAI_API_KEY with openrouter.ai host) should NOT be passed as
         OPENAI_API_KEY because OpenCode sends it to api.openai.com, not
         OpenRouter. OpenCode's free Zen models work without any API key.
         """
-        env_vars = {}
+        parts: list[str] = []
 
         # Only pass the OpenAI key if it's an actual OpenAI key (not OpenRouter).
-        # If it IS an OpenRouter key, explicitly unset it so OpenCode doesn't
-        # accidentally send it to api.openai.com (the container env already has it).
+        # Check the host from the secrets file or settings to determine.
         openai_key = settings.openai_api_key or ""
         openai_host = getattr(settings, "openai_host", "") or ""
         is_openrouter = "openrouter" in openai_host.lower() or openai_key.startswith("sk-or-")
         if openai_key and not is_openrouter:
-            env_vars["OPENAI_API_KEY"] = openai_key
+            parts.append(f"export OPENAI_API_KEY={self._read_secret_shell('openai_api_key')}")
         elif is_openrouter:
-            env_vars["OPENAI_API_KEY"] = ""  # Unset to prevent OpenCode using it
+            parts.append("unset OPENAI_API_KEY")  # Prevent OpenCode using it
 
         if settings.anthropic_api_key:
-            env_vars["ANTHROPIC_API_KEY"] = settings.anthropic_api_key
+            parts.append(f"export ANTHROPIC_API_KEY={self._read_secret_shell('anthropic_api_key')}")
 
         # OpenCode Zen API key (for free/paid Zen models)
         opencode_zen_key = getattr(settings, "opencode_zen_api_key", "")
         if opencode_zen_key:
-            env_vars["OPENCODE_API_KEY"] = opencode_zen_key
-
-        # Build export statements (and unset statements for empty values)
-        parts = []
-        for k, v in env_vars.items():
-            if v:
-                parts.append(f"export {k}='{v}'")
-            else:
-                parts.append(f"unset {k}")
+            parts.append(
+                f"export OPENCODE_API_KEY={self._read_secret_shell('opencode_zen_api_key')}"
+            )
 
         if not parts:
             return ""
@@ -339,11 +348,12 @@ class OpenCodeEngine(AgentEngine):
 
     async def _wait_for_health(self) -> None:
         """Poll the OpenCode server's health endpoint until it responds."""
-        deadline = asyncio.get_event_loop().time() + _SERVER_START_TIMEOUT
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + _SERVER_START_TIMEOUT
         last_error = ""
 
         async with httpx.AsyncClient(timeout=httpx.Timeout(5.0)) as client:
-            while asyncio.get_event_loop().time() < deadline:
+            while asyncio.get_running_loop().time() < deadline:
                 try:
                     resp = await client.get(f"{self._base_url}/global/health")
                     if resp.status_code == 200:
@@ -365,7 +375,8 @@ class OpenCodeEngine(AgentEngine):
 
     async def _create_session(self, task_id: str) -> str:
         """Create a new OpenCode session and return its ID."""
-        assert self._client is not None
+        if self._client is None:
+            raise RuntimeError("OpenCode client not initialized — call start() first")
 
         response = await self._client.post(
             "/session",

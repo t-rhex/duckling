@@ -28,6 +28,7 @@ class VMBackend(str, Enum):
 
 class VM(BaseModel):
     """A single VM instance in the warm pool."""
+
     id: str = Field(default_factory=lambda: f"vm-{uuid.uuid4().hex[:12]}")
     backend: VMBackend = VMBackend.DOCKER
     state: VMState = VMState.CREATING
@@ -43,6 +44,7 @@ class VM(BaseModel):
     memory_mb: int = 2048
     vcpu_count: int = 2
     error_message: Optional[str] = None
+    secrets_dir: Optional[str] = None  # Host path to temp secrets directory
 
     def claim(self, task_id: str) -> None:
         self.state = VMState.CLAIMED
@@ -57,6 +59,7 @@ class VM(BaseModel):
 
 class WarmPoolStats(BaseModel):
     """Statistics for the warm pool."""
+
     total_vms: int = 0
     ready_vms: int = 0
     claimed_vms: int = 0

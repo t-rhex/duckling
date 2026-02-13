@@ -13,6 +13,9 @@ Architecture mirrors Stripe's approach:
 from __future__ import annotations
 
 import asyncio
+import os
+import shutil
+import tempfile
 import time
 import uuid
 from abc import ABC, abstractmethod
@@ -73,6 +76,24 @@ class DockerBackend(VMBackendDriver):
         settings = get_settings()
         docker_client = self._get_docker()
 
+        # Write API keys as files in a host-side temp directory, mounted
+        # read-only into the container at /run/secrets/.  This prevents
+        # keys from being visible via `env` / `printenv` inside the
+        # container, mitigating exfiltration by user-controlled prompts.
+        secrets_dir, volume_mount = await self._prepare_secrets(settings)
+        vm.secrets_dir = secrets_dir
+
+        # Only pass non-sensitive configuration as env vars.
+        # API keys are available as files under /run/secrets/ instead.
+        environment = {
+            "VM_ID": vm.id,
+            "GOOSE_MODEL": settings.goose_model,
+            "GOOSE_PROVIDER": settings.goose_provider,
+            "OPENCODE_MODEL": settings.opencode_model,
+            # Tell engines where to find secret files
+            "SECRETS_DIR": "/run/secrets",
+        }
+
         def _create():
             return docker_client.containers.run(
                 image=settings.docker_image,
@@ -81,20 +102,18 @@ class DockerBackend(VMBackendDriver):
                 mem_limit=f"{vm.memory_mb}m",
                 cpu_count=vm.vcpu_count,
                 network=settings.docker_network,
-                environment={
-                    "VM_ID": vm.id,
-                    "ANTHROPIC_API_KEY": settings.anthropic_api_key,
-                    "OPENAI_API_KEY": settings.openai_api_key,
-                    "OPENAI_HOST": settings.openai_host,
-                    "GOOSE_MODEL": settings.goose_model,
-                    "GOOSE_PROVIDER": settings.goose_provider,
-                    "OPENCODE_MODEL": settings.opencode_model,
-                    "OPENCODE_ZEN_API_KEY": settings.opencode_zen_api_key,
-                },
+                environment=environment,
+                volumes=volume_mount,
                 labels={
                     "duckling.vm_id": vm.id,
                     "duckling.role": "agent-runner",
                 },
+                # Security hardening: drop all capabilities except NET_RAW
+                # (needed for DNS resolution / basic networking), and prevent
+                # privilege escalation inside the container.
+                security_opt=["no-new-privileges:true"],
+                cap_drop=["ALL"],
+                cap_add=["NET_RAW"],
                 remove=False,
             )
 
@@ -103,6 +122,38 @@ class DockerBackend(VMBackendDriver):
         vm.state = VMState.WARMING
         await logger.ainfo("Docker container created", vm_id=vm.id, container_id=container.short_id)
         return vm
+
+    async def _prepare_secrets(self, settings) -> tuple[str, dict]:
+        """Write API keys to a temp directory for Docker volume mount.
+
+        Returns (host_dir_path, volume_mount_dict).
+        Keys are written as individual files with restrictive permissions
+        so they are not exposed via container environment variables.
+        """
+        secrets_dir = tempfile.mkdtemp(prefix="duckling-secrets-")
+
+        secrets = {
+            "anthropic_api_key": settings.anthropic_api_key,
+            "openai_api_key": settings.openai_api_key,
+            "openai_host": settings.openai_host,
+            "opencode_zen_api_key": settings.opencode_zen_api_key,
+        }
+
+        for name, value in secrets.items():
+            if value:
+                path = os.path.join(secrets_dir, name)
+                with open(path, "w") as f:
+                    f.write(value)
+                os.chmod(path, 0o400)
+
+        return secrets_dir, {secrets_dir: {"bind": "/run/secrets", "mode": "ro"}}
+
+    async def _cleanup_secrets(self, secrets_dir: str) -> None:
+        """Remove the temporary secrets directory from the host."""
+        try:
+            shutil.rmtree(secrets_dir, ignore_errors=True)
+        except Exception:
+            pass
 
     async def warm_vm(self, vm: VM, repo_url: Optional[str] = None) -> VM:
         """Pre-install tools, clone a default repo if provided."""
@@ -130,6 +181,12 @@ class DockerBackend(VMBackendDriver):
                 await asyncio.to_thread(_destroy)
             except Exception as e:
                 await logger.awarning("Failed to destroy container", vm_id=vm.id, error=str(e))
+
+        # Clean up the host-side secrets directory
+        if vm.secrets_dir:
+            await self._cleanup_secrets(vm.secrets_dir)
+            vm.secrets_dir = None
+
         vm.state = VMState.DESTROYED
 
     async def exec_in_vm(self, vm: VM, command: str, timeout: int = 120) -> tuple[int, str, str]:
@@ -146,7 +203,20 @@ class DockerBackend(VMBackendDriver):
                 environment={"TERM": "xterm"},
             )
 
-        result = await asyncio.to_thread(_exec)
+        try:
+            result = await asyncio.wait_for(
+                asyncio.to_thread(_exec),
+                timeout=timeout,
+            )
+        except asyncio.TimeoutError:
+            await logger.awarning(
+                "Command timed out in VM",
+                vm_id=vm.id,
+                timeout=timeout,
+                command=command[:100],
+            )
+            return (124, "", f"Command timed out after {timeout}s")
+
         stdout = result.output[0].decode() if result.output[0] else ""
         stderr = result.output[1].decode() if result.output[1] else ""
         return (result.exit_code, stdout, stderr)
@@ -162,47 +232,26 @@ class DockerBackend(VMBackendDriver):
 class FirecrackerBackend(VMBackendDriver):
     """
     Firecracker-based VM backend for production.
-
-    Uses snapshot/restore for ~5ms VM claim times:
-    1. Create a base VM with kernel + rootfs
-    2. Boot it, install all deps, clone repos
-    3. Pause and snapshot the VM state
-    4. On claim: restore from snapshot (instant boot)
+    Not yet implemented — use Docker fallback for now.
     """
 
     async def create_vm(self, vm: VM) -> VM:
-        settings = get_settings()
-        vm.state = VMState.WARMING
-
-        # In production, this would:
-        # 1. Create a Firecracker microVM via its API socket
-        # 2. Configure kernel, rootfs, network
-        # 3. Boot the VM
-        await logger.ainfo(
-            "Firecracker VM creation (stub)",
-            vm_id=vm.id,
-            kernel=settings.firecracker_kernel,
+        raise NotImplementedError(
+            "Firecracker backend is not yet implemented. "
+            "Set USE_DOCKER_FALLBACK=true to use Docker instead."
         )
-        return vm
 
     async def warm_vm(self, vm: VM, repo_url: Optional[str] = None) -> VM:
-        # In production:
-        # 1. SSH into VM, install Goose + deps
-        # 2. Clone the default repo
-        # 3. Snapshot the VM for instant restore
-        vm.state = VMState.READY
-        return vm
+        raise NotImplementedError("Firecracker backend is not yet implemented.")
 
     async def destroy_vm(self, vm: VM) -> None:
-        # In production: kill the Firecracker process, clean up socket + snapshot files
-        vm.state = VMState.DESTROYED
+        raise NotImplementedError("Firecracker backend is not yet implemented.")
 
     async def exec_in_vm(self, vm: VM, command: str, timeout: int = 120) -> tuple[int, str, str]:
-        # In production: SSH into VM and execute
-        return (0, "", "")
+        raise NotImplementedError("Firecracker backend is not yet implemented.")
 
     async def health_check(self, vm: VM) -> bool:
-        return True
+        raise NotImplementedError("Firecracker backend is not yet implemented.")
 
 
 class WarmPoolManager:
@@ -237,6 +286,7 @@ class WarmPoolManager:
         self._refill_task: Optional[asyncio.Task] = None
         self._claim_times: deque[float] = deque(maxlen=100)
         self._running = False
+        self._filling = False
 
     async def start(self):
         """Start the pool manager and begin pre-warming VMs."""
@@ -286,8 +336,8 @@ class WarmPoolManager:
             self._claimed[task_id] = vm
             self._all_vms[vm.id] = vm
 
-        claim_time_ms = (time.monotonic() - start) * 1000
-        self._claim_times.append(claim_time_ms)
+            claim_time_ms = (time.monotonic() - start) * 1000
+            self._claim_times.append(claim_time_ms)
 
         await logger.ainfo(
             "VM claimed",
@@ -322,38 +372,50 @@ class WarmPoolManager:
         """Get the VM assigned to a task."""
         return self._claimed.get(task_id)
 
-    def get_stats(self) -> WarmPoolStats:
-        avg_claim = sum(self._claim_times) / len(self._claim_times) if self._claim_times else 0
-        return WarmPoolStats(
-            total_vms=len(self._pool) + len(self._claimed),
-            ready_vms=len(self._pool),
-            claimed_vms=len(self._claimed),
-            creating_vms=sum(1 for v in self._all_vms.values() if v.state == VMState.CREATING),
-            error_vms=sum(1 for v in self._all_vms.values() if v.state == VMState.ERROR),
-            backend=VMBackend.DOCKER
-            if isinstance(self.backend, DockerBackend)
-            else VMBackend.FIRECRACKER,
-            target_pool_size=self.target_size,
-            avg_claim_time_ms=round(avg_claim, 2),
-        )
+    async def get_stats(self) -> WarmPoolStats:
+        """Get pool statistics (thread-safe)."""
+        async with self._lock:
+            avg_claim = sum(self._claim_times) / len(self._claim_times) if self._claim_times else 0
+            return WarmPoolStats(
+                total_vms=len(self._pool) + len(self._claimed),
+                ready_vms=len(self._pool),
+                claimed_vms=len(self._claimed),
+                creating_vms=sum(1 for v in self._all_vms.values() if v.state == VMState.CREATING),
+                error_vms=sum(1 for v in self._all_vms.values() if v.state == VMState.ERROR),
+                backend=VMBackend.DOCKER
+                if isinstance(self.backend, DockerBackend)
+                else VMBackend.FIRECRACKER,
+                target_pool_size=self.target_size,
+                avg_claim_time_ms=round(avg_claim, 2),
+            )
 
     async def _fill_pool(self):
         """Fill the pool up to the target size."""
-        needed = self.target_size - len(self._pool)
-        if needed <= 0:
-            return
+        async with self._lock:
+            if self._filling:
+                return
+            needed = self.target_size - len(self._pool)
+            if needed <= 0:
+                return
+            self._filling = True
 
-        await logger.ainfo("Filling warm pool", needed=needed, current=len(self._pool))
-        tasks = [self._create_and_warm_vm() for _ in range(needed)]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        try:
+            await logger.ainfo(
+                "Filling warm pool", needed=needed, current_pool=self.target_size - needed
+            )
+            tasks = [self._create_and_warm_vm() for _ in range(needed)]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        for result in results:
-            if isinstance(result, VM):
-                async with self._lock:
-                    self._pool.append(result)
-                    self._all_vms[result.id] = result
-            elif isinstance(result, Exception):
-                await logger.aerror("Failed to create VM", error=str(result))
+            async with self._lock:
+                for result in results:
+                    if isinstance(result, VM):
+                        self._pool.append(result)
+                        self._all_vms[result.id] = result
+                    elif isinstance(result, Exception):
+                        await logger.aerror("Failed to create VM", error=str(result))
+        finally:
+            async with self._lock:
+                self._filling = False
 
     async def _create_and_warm_vm(self) -> VM:
         """Create a single VM and warm it up."""
@@ -370,7 +432,9 @@ class WarmPoolManager:
         """Background loop that keeps the pool topped up."""
         while self._running:
             try:
-                if len(self._pool) < self.refill_threshold:
+                async with self._lock:
+                    pool_size = len(self._pool)
+                if pool_size < self.refill_threshold:
                     await self._fill_pool()
                 await asyncio.sleep(2)
             except asyncio.CancelledError:

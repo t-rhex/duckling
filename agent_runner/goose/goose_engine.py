@@ -31,21 +31,36 @@ class GooseEngine(AgentEngine):
     def name(self) -> str:
         return "Goose"
 
+    @staticmethod
+    def _read_secret_shell(name: str) -> str:
+        """Return a shell snippet that reads a secret from /run/secrets/.
+
+        Secrets are written as files by the pool manager and mounted
+        read-only into the container.  Reading them at exec time avoids
+        embedding keys as env vars visible via ``printenv``.
+        """
+        return f"$(cat /run/secrets/{name} 2>/dev/null)"
+
     def _build_env_prefix(self) -> str:
-        """Build shell env var exports for the goose process."""
+        """Build shell env var exports for the goose process.
+
+        Keys are read from /run/secrets/ files (mounted by pool manager)
+        rather than from container environment variables.
+        """
         settings = get_settings()
-        env_vars = {}
+        parts: list[str] = []
 
         if settings.goose_provider == "openai":
-            env_vars["OPENAI_API_KEY"] = settings.openai_api_key
-            env_vars["OPENAI_HOST"] = settings.openai_host
+            if settings.openai_api_key:
+                parts.append(f"export OPENAI_API_KEY={self._read_secret_shell('openai_api_key')}")
+            if settings.openai_host:
+                parts.append(f"export OPENAI_HOST={self._read_secret_shell('openai_host')}")
         elif settings.goose_provider == "anthropic":
-            env_vars["ANTHROPIC_API_KEY"] = settings.anthropic_api_key
+            if settings.anthropic_api_key:
+                parts.append(
+                    f"export ANTHROPIC_API_KEY={self._read_secret_shell('anthropic_api_key')}"
+                )
 
-        if not env_vars:
-            return ""
-
-        parts = [f"export {k}={shlex.quote(v)}" for k, v in env_vars.items() if v]
         return " && ".join(parts) + " && " if parts else ""
 
     async def start(self, vm: VM, task: Task, backend: VMBackendDriver) -> None:
@@ -61,7 +76,7 @@ class GooseEngine(AgentEngine):
         # Generate the correct profiles.yaml using goose's own profile factory
         # inside the VM so the YAML structure is guaranteed to be valid.
         gen_profile_script = (
-            f"python3 -c \""
+            f'python3 -c "'
             f"from goose.cli.config import default_profiles, PROFILES_CONFIG_PATH;"
             f"import os, yaml;"
             f"profiles = default_profiles();"
@@ -69,7 +84,7 @@ class GooseEngine(AgentEngine):
             f"profile = factory('{provider}', '{model}', '{model}');"
             f"os.makedirs(str(PROFILES_CONFIG_PATH.parent), exist_ok=True);"
             f"PROFILES_CONFIG_PATH.write_text(yaml.dump({{'default': profile.to_dict()}}, default_flow_style=False))"
-            f"\""
+            f'"'
         )
 
         # Patch goose's OpenAI provider to use proper Bearer token auth
@@ -78,16 +93,18 @@ class GooseEngine(AgentEngine):
             "/usr/local/lib/python3.12/site-packages/exchange/providers/openai.py"
         )
         patch_cmd = (
-            f"sed -i 's/auth=(\"Bearer\", key)/headers={{\"Authorization\": f\"Bearer {{key}}\"}}/g' "
+            f'sed -i \'s/auth=("Bearer", key)/headers={{"Authorization": f"Bearer {{key}}"}}/g\' '
             f"{openai_provider_path}"
         )
 
-        setup_cmds = " && ".join([
-            "mkdir -p /workspace/prompts",
-            "pip3 install -q pyyaml 2>/dev/null || true",
-            gen_profile_script,
-            patch_cmd,
-        ])
+        setup_cmds = " && ".join(
+            [
+                "mkdir -p /workspace/prompts",
+                "pip3 install -q pyyaml 2>/dev/null || true",
+                gen_profile_script,
+                patch_cmd,
+            ]
+        )
         await self._backend.exec_in_vm(vm, setup_cmds, timeout=30)
 
     async def execute_prompt(self, prompt: str, timeout: int = 180) -> tuple[bool, str]:
@@ -100,7 +117,9 @@ class GooseEngine(AgentEngine):
         # Write the prompt to a markdown file inside the VM using heredoc
         write_cmd = f"cat > {prompt_file} << 'GOOSE_PROMPT_EOF'\n{prompt}\nGOOSE_PROMPT_EOF"
         exit_code, _, stderr = await self._backend.exec_in_vm(
-            self._vm, write_cmd, timeout=5,
+            self._vm,
+            write_cmd,
+            timeout=5,
         )
         if exit_code != 0:
             return (False, f"Failed to write prompt file: {stderr}")
