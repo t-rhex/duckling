@@ -7,10 +7,7 @@ These tests demonstrate the kinds of issues a coding agent should fix:
 3. Missing response body assertion (test_logout)
 """
 
-import asyncio
-import time
 import threading
-from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient

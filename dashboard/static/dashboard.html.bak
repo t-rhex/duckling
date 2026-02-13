@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duckling — Dashboard</title>
+    <style>
+        :root {
+            --bg-primary: #0a0e17;
+            --bg-secondary: #111827;
+            --bg-card: #1a2332;
+            --bg-card-hover: #1f2b3d;
+            --border: #2a3a50;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-yellow: #f59e0b;
+            --accent-red: #ef4444;
+            --accent-purple: #8b5cf6;
+            --accent-cyan: #06b6d4;
+            --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 32px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+            padding: 24px 32px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            font-family: var(--font-mono);
+        }
+
+        .stat-value.green { color: var(--accent-green); }
+        .stat-value.blue { color: var(--accent-blue); }
+        .stat-value.yellow { color: var(--accent-yellow); }
+        .stat-value.red { color: var(--accent-red); }
+        .stat-value.purple { color: var(--accent-purple); }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+            padding: 0 32px 32px;
+        }
+
+        .panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .panel-title {
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .panel-body {
+            padding: 16px 20px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        /* Task list */
+        .task-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            padding: 14px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .task-item:last-child { border-bottom: none; }
+
+        .task-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-top: 6px;
+            flex-shrink: 0;
+        }
+
+        .task-status.pending { background: var(--text-muted); }
+        .task-status.running { background: var(--accent-blue); animation: pulse 1.5s infinite; }
+        .task-status.testing { background: var(--accent-yellow); animation: pulse 1.5s infinite; }
+        .task-status.completed { background: var(--accent-green); }
+        .task-status.failed { background: var(--accent-red); }
+        .task-status.claiming_vm { background: var(--accent-cyan); animation: pulse 1.5s infinite; }
+        .task-status.creating_pr { background: var(--accent-purple); animation: pulse 1.5s infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .task-info { flex: 1; }
+
+        .task-desc {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .task-meta {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+        }
+
+        .task-pr {
+            font-size: 12px;
+            color: var(--accent-green);
+            text-decoration: none;
+        }
+
+        .task-pr:hover { text-decoration: underline; }
+
+        /* Agent log */
+        .agent-log {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .log-line { padding: 2px 0; }
+        .log-line.success { color: var(--accent-green); }
+        .log-line.error { color: var(--accent-red); }
+        .log-line.step { color: var(--accent-blue); }
+
+        /* Pool visualization */
+        .vm-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+        }
+
+        .vm-slot {
+            aspect-ratio: 1;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .vm-slot.ready { background: rgba(16, 185, 129, 0.15); border-color: var(--accent-green); color: var(--accent-green); }
+        .vm-slot.claimed { background: rgba(59, 130, 246, 0.15); border-color: var(--accent-blue); color: var(--accent-blue); }
+        .vm-slot.creating { background: rgba(100, 116, 139, 0.15); border-color: var(--text-muted); color: var(--text-muted); }
+        .vm-slot.empty { background: transparent; border-style: dashed; color: var(--text-muted); }
+
+        /* Submit form */
+        .submit-form {
+            padding: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-input, .form-select {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            font-size: 14px;
+        }
+
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        .form-textarea {
+            width: 100%;
+            min-height: 80px;
+            padding: 10px 14px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            font-size: 14px;
+            resize: vertical;
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .btn-submit:hover { opacity: 0.9; }
+        .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Live indicator */
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-green);
+            border-radius: 50%;
+            display: inline-block;
+            animation: pulse 2s infinite;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-running { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+        .badge-completed { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+        .badge-failed { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+
+        @media (max-width: 1024px) {
+            .stats-row { grid-template-columns: repeat(3, 1fr); }
+            .main-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <div class="logo">
+            <div class="logo-icon">M</div>
+            <span>Duckling</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 13px;">
+            <span class="live-dot"></span>
+            <span id="connection-status">Connected</span>
+        </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="stat-label">Active Ducklings</div>
+            <div class="stat-value blue" id="stat-active">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">PRs Created Today</div>
+            <div class="stat-value green" id="stat-prs">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">VMs Ready</div>
+            <div class="stat-value purple" id="stat-vms">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Avg Claim Time</div>
+            <div class="stat-value yellow" id="stat-claim">0ms</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Success Rate</div>
+            <div class="stat-value green" id="stat-success">100%</div>
+        </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="main-grid">
+        <!-- Left: Task List + Agent Log -->
+        <div>
+            <div class="panel" style="margin-bottom: 24px;">
+                <div class="panel-header">
+                    <div class="panel-title">Active Tasks</div>
+                    <div id="task-count" style="font-size: 12px; color: var(--text-muted);">0 tasks</div>
+                </div>
+                <div class="panel-body" id="task-list">
+                    <div style="text-align: center; color: var(--text-muted); padding: 40px;">
+                        No active tasks. Submit one below or via Slack!
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Agent Log</div>
+                    <button onclick="clearLog()" style="background: none; border: 1px solid var(--border); color: var(--text-muted); padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;">Clear</button>
+                </div>
+                <div class="panel-body" id="agent-log" style="max-height: 300px;">
+                    <div class="agent-log">Waiting for task...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Pool + Submit -->
+        <div>
+            <div class="panel" style="margin-bottom: 24px;">
+                <div class="panel-header">
+                    <div class="panel-title">VM Warm Pool</div>
+                </div>
+                <div class="panel-body">
+                    <div class="vm-grid" id="vm-pool">
+                        <!-- VMs rendered by JS -->
+                    </div>
+                    <div style="margin-top: 12px; font-size: 12px; color: var(--text-muted);">
+                        <span style="color: var(--accent-green);">●</span> Ready &nbsp;
+                        <span style="color: var(--accent-blue);">●</span> Claimed &nbsp;
+                        <span style="color: var(--text-muted);">●</span> Creating
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Submit Task</div>
+                </div>
+                <form class="submit-form" onsubmit="submitTask(event)">
+                    <div class="form-group">
+                        <label class="form-label">Task Description</label>
+                        <textarea class="form-textarea" id="task-desc" placeholder="Fix the flaky test in auth service..." required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Repository URL</label>
+                        <input class="form-input" id="task-repo" type="url" placeholder="https://github.com/cohesity/auth-service" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Priority</label>
+                        <select class="form-select" id="task-priority">
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                            <option value="critical">Critical</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-submit" id="btn-submit">
+                        Deploy Duckling
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let tasks = [];
+        let pollInterval;
+
+        // ── API calls ────────────────────────────────────────────
+
+        async function fetchTasks() {
+            try {
+                const resp = await fetch(`${API_BASE}/api/tasks`);
+                const data = await resp.json();
+                tasks = data.tasks || [];
+                renderTasks();
+                updateStats();
+            } catch (e) {
+                console.error('Failed to fetch tasks:', e);
+            }
+        }
+
+        async function fetchPoolStats() {
+            try {
+                const resp = await fetch(`${API_BASE}/api/pool/stats`);
+                const stats = await resp.json();
+                renderPool(stats);
+                document.getElementById('stat-vms').textContent = stats.ready_vms;
+                document.getElementById('stat-claim').textContent = `${stats.avg_claim_time_ms.toFixed(1)}ms`;
+            } catch (e) {
+                console.error('Failed to fetch pool stats:', e);
+            }
+        }
+
+        async function submitTask(event) {
+            event.preventDefault();
+            const btn = document.getElementById('btn-submit');
+            btn.disabled = true;
+            btn.textContent = 'Deploying...';
+
+            try {
+                const resp = await fetch(`${API_BASE}/api/tasks`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        description: document.getElementById('task-desc').value,
+                        repo_url: document.getElementById('task-repo').value,
+                        priority: document.getElementById('task-priority').value,
+                    }),
+                });
+
+                if (resp.ok) {
+                    const task = await resp.json();
+                    appendLog(`Task ${task.id.slice(0, 8)} submitted: ${task.description}`, 'step');
+                    document.getElementById('task-desc').value = '';
+                    fetchTasks();
+                } else {
+                    const err = await resp.json();
+                    appendLog(`Error: ${err.detail}`, 'error');
+                }
+            } catch (e) {
+                appendLog(`Submit failed: ${e.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Deploy Duckling';
+            }
+        }
+
+        // ── Rendering ────────────────────────────────────────────
+
+        function renderTasks() {
+            const list = document.getElementById('task-list');
+            if (tasks.length === 0) {
+                list.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 40px;">No active tasks. Submit one below or via Slack!</div>';
+                return;
+            }
+
+            list.innerHTML = tasks.map(task => {
+                const statusClass = task.status.replace('_', '');
+                return `
+                    <div class="task-item">
+                        <div class="task-status ${task.status}"></div>
+                        <div class="task-info">
+                            <div class="task-desc">${escapeHtml(task.description.slice(0, 80))}</div>
+                            <div class="task-meta">
+                                ${task.id.slice(0, 8)} · ${task.status} · ${task.iterations_used} iters
+                                ${task.duration_seconds ? ` · ${task.duration_seconds.toFixed(0)}s` : ''}
+                            </div>
+                            ${task.pr_url ? `<a class="task-pr" href="${task.pr_url}" target="_blank">View PR →</a>` : ''}
+                        </div>
+                        <span class="badge badge-${task.status === 'completed' ? 'completed' : task.status === 'failed' ? 'failed' : 'running'}">${task.status}</span>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('task-count').textContent = `${tasks.length} task${tasks.length !== 1 ? 's' : ''}`;
+        }
+
+        function renderPool(stats) {
+            const grid = document.getElementById('vm-pool');
+            const total = stats.target_pool_size || 10;
+            const slots = [];
+
+            for (let i = 0; i < stats.ready_vms; i++) slots.push('ready');
+            for (let i = 0; i < stats.claimed_vms; i++) slots.push('claimed');
+            for (let i = 0; i < stats.creating_vms; i++) slots.push('creating');
+            while (slots.length < total) slots.push('empty');
+
+            grid.innerHTML = slots.map((state, i) =>
+                `<div class="vm-slot ${state}">${state === 'empty' ? '—' : state === 'ready' ? 'RDY' : state === 'claimed' ? 'RUN' : '...'}</div>`
+            ).join('');
+        }
+
+        function updateStats() {
+            const active = tasks.filter(t => ['running', 'claiming_vm', 'testing', 'creating_pr'].includes(t.status)).length;
+            const completed = tasks.filter(t => t.status === 'completed').length;
+            const failed = tasks.filter(t => t.status === 'failed').length;
+            const total = completed + failed;
+
+            document.getElementById('stat-active').textContent = active;
+            document.getElementById('stat-prs').textContent = completed;
+            document.getElementById('stat-success').textContent = total > 0 ? `${Math.round(completed / total * 100)}%` : '—';
+        }
+
+        function appendLog(msg, type = '') {
+            const log = document.getElementById('agent-log');
+            const line = document.createElement('div');
+            line.className = `log-line ${type}`;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            log.querySelector('.agent-log')?.remove();
+            log.appendChild(line);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('agent-log').innerHTML = '<div class="agent-log">Waiting for task...</div>';
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // ── Polling ──────────────────────────────────────────────
+
+        function startPolling() {
+            fetchTasks();
+            fetchPoolStats();
+            pollInterval = setInterval(() => {
+                fetchTasks();
+                fetchPoolStats();
+            }, 3000);
+        }
+
+        // ── Init ─────────────────────────────────────────────────
+
+        // Render initial pool state
+        renderPool({ ready_vms: 8, claimed_vms: 1, creating_vms: 1, target_pool_size: 10 });
+
+        // Start polling
+        startPolling();
+    </script>
+</body>
+</html>

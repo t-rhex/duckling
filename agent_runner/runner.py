@@ -200,14 +200,14 @@ class AgentRunner:
             deps_result = await self._step_dependency_analysis(vm)
             result.steps.append(deps_result)
             await self._notify(deps_result)
-            log(f"  ✓ Dependencies analyzed")
+            log("  ✓ Dependencies analyzed")
 
             # ── Step 4: CODE METRICS — lines, complexity, stats ──────────
             log("▶ Step 4/9: Computing code metrics...")
             metrics_result = await self._step_code_metrics(vm)
             result.steps.append(metrics_result)
             await self._notify(metrics_result)
-            log(f"  ✓ Code metrics computed")
+            log("  ✓ Code metrics computed")
 
             # ── Step 5: SECURITY SCAN — AST-based pattern matching ───────
             log("▶ Step 5/9: Running AST security scan...")
@@ -302,7 +302,10 @@ class AgentRunner:
     ) -> AgentRunResult:
         """Execute a peer review: clone → diff target vs base → AI reviews the diff."""
         _validate_branch_name(task.branch, "branch")
+        if not task.target_branch:
+            raise ValueError("target_branch is required for peer review")
         _validate_branch_name(task.target_branch, "target_branch")
+        target_branch: str = task.target_branch  # narrowed from Optional[str]
         start = time.monotonic()
         result = AgentRunResult(success=False)
         log_lines: list[str] = []
@@ -313,7 +316,7 @@ class AgentRunner:
 
         try:
             log(f"🔧 Agent engine: {self.engine.name}")
-            log(f"📋 Mode: PEER REVIEW (diff {task.target_branch} vs {task.branch})")
+            log(f"📋 Mode: PEER REVIEW (diff {target_branch} vs {task.branch})")
 
             # ── Step 1: SETUP — clone and fetch both branches ──────────
             log("▶ Step 1/4: Cloning repository...")
@@ -323,18 +326,18 @@ class AgentRunner:
                 vm,
                 clone_url,
                 task.branch,
-                task.target_branch,
+                target_branch,
             )
             result.steps.append(setup_result)
             await self._notify(setup_result)
             if not setup_result.success:
                 result.error = f"Setup failed: {setup_result.error}"
                 return result
-            log(f"  ✓ Repo cloned, checked out '{task.target_branch}'")
+            log(f"  ✓ Repo cloned, checked out '{target_branch}'")
 
             # ── Step 2: Get the diff (deterministic) ───────────────────
-            log(f"▶ Step 2/4: Computing diff ({task.branch}..{task.target_branch})...")
-            diff_result = await self._step_get_diff(vm, task.branch, task.target_branch)
+            log(f"▶ Step 2/4: Computing diff ({task.branch}..{target_branch})...")
+            diff_result = await self._step_get_diff(vm, task.branch, target_branch)
             result.steps.append(diff_result)
             await self._notify(diff_result)
             if not diff_result.output.strip():
@@ -342,7 +345,7 @@ class AgentRunner:
                 result.success = True
                 log("")
                 log("═══ PEER REVIEW OUTPUT ═══")
-                log(f"No differences found between '{task.branch}' and '{task.target_branch}'.")
+                log(f"No differences found between '{task.branch}' and '{target_branch}'.")
                 return result
             diff_stats = diff_result.metadata.get("stats", "")
             log(f"  ✓ Diff computed ({diff_stats})")
@@ -1236,7 +1239,7 @@ Use commands like `cat /workspace/repo/<file>` to see the full file context arou
     async def _step_peer_review_feedback(self, task: Task) -> StepResult:
         """Generate structured peer review feedback."""
         start = time.monotonic()
-        prompt = f"""Based on your review, provide structured feedback the developer can act on.
+        prompt = """Based on your review, provide structured feedback the developer can act on.
 
 Format your response as:
 

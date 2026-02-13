@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 
 import httpx
 import structlog
@@ -323,9 +322,6 @@ class OpenCodeEngine(AgentEngine):
 
     async def _get_container_ip(self, vm: VM, backend: VMBackendDriver) -> str:
         """Get the container's IP address on the Docker network."""
-        settings = get_settings()
-        network_name = settings.docker_network
-
         # Use docker inspect to get the container IP
         exit_code, stdout, stderr = await backend.exec_in_vm(
             vm,

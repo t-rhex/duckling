@@ -26,8 +26,8 @@ RUN ARCH=$(uname -m) && \
 # Install scc (for code statistics) — replaces tokei which lacks pre-built binaries
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "aarch64" ]; then SCC_ARCH="arm64"; \
-    else SCC_ARCH="amd64"; fi && \
-    curl -fsSL "https://github.com/boyter/scc/releases/download/v3.5.0/scc_Linux_${SCC_ARCH}.tar.gz" \
+    else SCC_ARCH="x86_64"; fi && \
+    curl -fsSL "https://github.com/boyter/scc/releases/download/v3.6.0/scc_Linux_${SCC_ARCH}.tar.gz" \
     | tar xz -C /usr/local/bin/ scc
 
 # Install Node.js (for JS/TS repo support + OpenCode)

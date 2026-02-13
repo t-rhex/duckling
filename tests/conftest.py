@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from orchestrator.models.task import Task, TaskPriority, TaskStatus
+from orchestrator.models.task import Task
 from orchestrator.models.vm import VM, VMBackend, VMState
 
 

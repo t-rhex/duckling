@@ -10,9 +10,7 @@ We generate a custom profile for each task that includes:
 
 from __future__ import annotations
 
-import json
 import os
-from typing import Any
 
 import structlog
 

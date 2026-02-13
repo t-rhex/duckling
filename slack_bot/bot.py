@@ -25,7 +25,6 @@ from slack_sdk.web.async_client import AsyncWebClient
 from orchestrator.models.task import (
     GitProvider,
     Task,
-    TaskCreate,
     TaskMode,
     TaskPriority,
     TaskSource,

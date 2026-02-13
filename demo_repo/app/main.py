@@ -8,13 +8,12 @@ It has intentionally flaky tests and bugs for the agent to fix.
 from __future__ import annotations
 
 import hashlib
-import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException, status
-from pydantic import BaseModel, EmailStr, Field
+from fastapi import FastAPI, HTTPException, status
+from pydantic import BaseModel, Field
 
 app = FastAPI(title="Auth Service", version="0.1.0")
 

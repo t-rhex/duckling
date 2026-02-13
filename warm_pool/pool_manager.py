@@ -17,7 +17,6 @@ import os
 import shutil
 import tempfile
 import time
-import uuid
 from abc import ABC, abstractmethod
 from collections import deque
 from typing import Optional

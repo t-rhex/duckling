@@ -2,7 +2,7 @@
 
 import pytest
 
-from orchestrator.models.task import Task, TaskPriority, TaskStatus
+from orchestrator.models.task import Task
 from orchestrator.services.config import get_settings
 
 structlog = pytest.importorskip("structlog")

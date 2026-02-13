@@ -6,8 +6,7 @@ Covers:
 3. WarmPoolManager.release_vm() calls vm.release() before destroy (GAP 3)
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 

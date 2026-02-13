@@ -26,7 +26,6 @@ from orchestrator.models.task import (
     Task,
     TaskCreate,
     TaskListResponse,
-    TaskMode,
     TaskResponse,
     TaskStatus,
 )
