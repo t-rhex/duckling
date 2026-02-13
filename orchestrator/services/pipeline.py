@@ -135,6 +135,10 @@ class TaskPipeline:
                 duration_s=round(task.duration_seconds, 1),
             )
 
+        except asyncio.CancelledError:
+            task.status = TaskStatus.CANCELLED
+            await logger.ainfo("Review cancelled", task_id=task.id)
+
         except asyncio.TimeoutError:
             task.mark_failed(f"Review timed out after {task.timeout_seconds}s")
             await logger.aerror("Review timed out", task_id=task.id)
@@ -220,6 +224,10 @@ class TaskPipeline:
                 task_id=task.id,
                 duration_s=round(task.duration_seconds, 1),
             )
+
+        except asyncio.CancelledError:
+            task.status = TaskStatus.CANCELLED
+            await logger.ainfo("Peer review cancelled", task_id=task.id)
 
         except asyncio.TimeoutError:
             task.mark_failed(f"Peer review timed out after {task.timeout_seconds}s")
@@ -316,6 +324,10 @@ class TaskPipeline:
                 duration_s=round(task.duration_seconds, 1),
             )
 
+        except asyncio.CancelledError:
+            task.status = TaskStatus.CANCELLED
+            await logger.ainfo("Task cancelled", task_id=task.id)
+
         except asyncio.TimeoutError:
             task.mark_failed(f"Task timed out after {task.timeout_seconds}s")
             await logger.aerror("Task timed out", task_id=task.id)
@@ -393,6 +405,30 @@ class TaskQueue:
         await self._queue.put((priority.get(task.priority.value, 2), task.id))
         await logger.ainfo("Task queued", task_id=task.id, priority=task.priority)
         return task
+
+    async def cancel_task(self, task_id: str) -> bool:
+        """Cancel a running or pending task.
+
+        If the task has an active asyncio.Task, cancels it — which raises
+        CancelledError inside the pipeline, triggering the finally block
+        that releases the VM.  Returns True if the task was found and
+        cancelled.
+        """
+        task = self._tasks.get(task_id)
+        if not task:
+            return False
+
+        # Cancel the asyncio task if it's actively running
+        async_task = self._active.get(task_id)
+        if async_task and not async_task.done():
+            async_task.cancel()
+            await logger.ainfo("Asyncio task cancelled", task_id=task_id)
+
+        # Mark the domain task as cancelled (the pipeline's CancelledError
+        # handler will also do this, but we set it eagerly for immediate
+        # visibility in the API response).
+        task.status = TaskStatus.CANCELLED
+        return True
 
     def get_task(self, task_id: str) -> Optional[Task]:
         return self._tasks.get(task_id)

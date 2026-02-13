@@ -304,7 +304,18 @@ class WarmPoolManager:
             vm = self._claimed.pop(task_id, None)
 
         if vm:
+            # Transition through CLEANING state so the state machine is
+            # properly followed and released_at timestamp is recorded.
+            vm.release()
+
             await self.backend.destroy_vm(vm)
+
+            # Remove from the global registry to prevent unbounded growth
+            # of _all_vms (only DESTROYED VMs are removed — CREATING/ERROR
+            # VMs are still tracked for get_stats()).
+            async with self._lock:
+                self._all_vms.pop(vm.id, None)
+
             await logger.ainfo("VM released and destroyed", vm_id=vm.id, task_id=task_id)
 
     async def get_vm(self, task_id: str) -> Optional[VM]:

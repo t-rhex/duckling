@@ -157,7 +157,12 @@ async def get_task(task_id: str):
 
 @router.delete("/api/tasks/{task_id}")
 async def cancel_task(task_id: str):
-    """Cancel a running or pending task."""
+    """Cancel a running or pending task.
+
+    This cancels the underlying asyncio task (if running), which raises
+    CancelledError inside the pipeline's try block.  The finally block
+    then releases the VM back to the pool.
+    """
     if _task_queue is None:
         raise HTTPException(status_code=503, detail="Task queue not initialized")
 
@@ -168,7 +173,7 @@ async def cancel_task(task_id: str):
     if task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED):
         raise HTTPException(status_code=400, detail=f"Task already {task.status.value}")
 
-    task.status = TaskStatus.CANCELLED
+    await _task_queue.cancel_task(task_id)
     return {"status": "cancelled", "task_id": task_id}
 
 
