@@ -162,14 +162,14 @@ class AgentRunner:
             deps_result = await self._step_dependency_analysis(vm)
             result.steps.append(deps_result)
             await self._notify(deps_result)
-            log(f"  ✓ Dependencies analyzed")
+            log("  ✓ Dependencies analyzed")
 
             # ── Step 4: CODE METRICS — lines, complexity, stats ──────────
             log("▶ Step 4/9: Computing code metrics...")
             metrics_result = await self._step_code_metrics(vm)
             result.steps.append(metrics_result)
             await self._notify(metrics_result)
-            log(f"  ✓ Code metrics computed")
+            log("  ✓ Code metrics computed")
 
             # ── Step 5: SECURITY SCAN — AST-based pattern matching ───────
             log("▶ Step 5/9: Running AST security scan...")
@@ -261,6 +261,8 @@ class AgentRunner:
 
     async def run_peer_review(self, task: Task, vm: VM, clone_url: str) -> AgentRunResult:
         """Execute a peer review: clone → diff target vs base → AI reviews the diff."""
+        if not task.branch or not task.target_branch:
+            return AgentRunResult(success=False, error="Peer review requires both branch and target_branch")
         start = time.monotonic()
         result = AgentRunResult(success=False)
         log_lines: list[str] = []
@@ -1180,7 +1182,7 @@ Use commands like `cat /workspace/repo/<file>` to see the full file context arou
     async def _step_peer_review_feedback(self, task: Task) -> StepResult:
         """Generate structured peer review feedback."""
         start = time.monotonic()
-        prompt = f"""Based on your review, provide structured feedback the developer can act on.
+        prompt = """Based on your review, provide structured feedback the developer can act on.
 
 Format your response as:
 

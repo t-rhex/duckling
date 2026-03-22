@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import asyncio
 import time
-import uuid
 from abc import ABC, abstractmethod
 from collections import deque
 from typing import Optional

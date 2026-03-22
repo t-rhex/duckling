@@ -21,13 +21,12 @@ Each stage publishes events for real-time monitoring via WebSocket.
 from __future__ import annotations
 
 import asyncio
-import time
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 import structlog
 
 from agent_runner.engine import create_engine
-from agent_runner.runner import AgentRunner, StepResult
+from agent_runner.runner import AgentRunner
 from git_integration.git_manager import GitManager
 from orchestrator.models.task import Task, TaskMode, TaskStatus
 from orchestrator.services.config import get_settings
@@ -132,7 +131,7 @@ class TaskPipeline:
             await logger.ainfo(
                 "Review completed",
                 task_id=task.id,
-                duration_s=round(task.duration_seconds, 1),
+                duration_s=round(task.duration_seconds or 0, 1),
             )
 
         except asyncio.TimeoutError:
@@ -218,7 +217,7 @@ class TaskPipeline:
             await logger.ainfo(
                 "Peer review completed",
                 task_id=task.id,
-                duration_s=round(task.duration_seconds, 1),
+                duration_s=round(task.duration_seconds or 0, 1),
             )
 
         except asyncio.TimeoutError:
@@ -313,7 +312,7 @@ class TaskPipeline:
                 "Task completed successfully",
                 task_id=task.id,
                 pr_url=pr_result.pr_url,
-                duration_s=round(task.duration_seconds, 1),
+                duration_s=round(task.duration_seconds or 0, 1),
             )
 
         except asyncio.TimeoutError:
