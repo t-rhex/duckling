@@ -119,8 +119,6 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
-    settings = get_settings()
-
     app = FastAPI(
         title="Duckling",
         description="Duckling — autonomous coding agent platform (inspired by Stripe Minions)",

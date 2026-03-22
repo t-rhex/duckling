@@ -8,7 +8,6 @@ from typing import Optional
 import structlog
 
 from orchestrator.models.task import GitProvider as GitProviderEnum
-from orchestrator.services.config import get_settings
 
 from .providers.base import GitProvider, PRResult
 from .providers.bitbucket_provider import BitbucketProvider

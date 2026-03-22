@@ -3,7 +3,7 @@
 import pytest
 
 from orchestrator.models.task import TaskMode
-from orchestrator.services.intent import classify_intent, IntentResult
+from orchestrator.services.intent import classify_intent
 
 
 class TestIntentClassifier:

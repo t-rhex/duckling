@@ -5,7 +5,6 @@ from orchestrator.models.task import (
     Task,
     TaskCreate,
     TaskPriority,
-    TaskSource,
     TaskStatus,
 )
 from orchestrator.models.vm import VM, VMBackend, VMState, WarmPoolStats

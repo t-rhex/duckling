@@ -13,7 +13,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 import time
 
@@ -35,7 +34,7 @@ def submit_task(args):
     resp = httpx.post(f"{API_BASE}/api/tasks", json=payload)
     if resp.status_code == 201:
         task = resp.json()
-        print(f"\033[32m✓ Task submitted!\033[0m")
+        print("\033[32m✓ Task submitted!\033[0m")
         print(f"  ID:          {task['id'][:8]}")
         print(f"  Description: {task['description']}")
         print(f"  Status:      {task['status']}")
@@ -70,7 +69,7 @@ def show_status(args):
             if task.get("error_message"):
                 print(f"  Error:      {task['error_message']}")
         else:
-            print(f"\033[31m✗ Task not found\033[0m")
+            print("\033[31m✗ Task not found\033[0m")
     else:
         # All tasks
         resp = httpx.get(f"{API_BASE}/api/tasks")
@@ -113,7 +112,7 @@ def show_log(args):
         else:
             print("No log output yet.")
     else:
-        print(f"\033[31m✗ Task not found\033[0m")
+        print("\033[31m✗ Task not found\033[0m")
 
 
 def show_pool(args):
@@ -147,7 +146,7 @@ def show_pool(args):
         pool_visual += "░" * max(0, remaining)
         print(f"\n  [{pool_visual}]")
     else:
-        print(f"\033[31m✗ Failed to get pool stats\033[0m")
+        print("\033[31m✗ Failed to get pool stats\033[0m")
 
 
 def follow_task(task_id: str):

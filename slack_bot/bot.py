@@ -22,7 +22,7 @@ import structlog
 from slack_bolt.async_app import AsyncApp
 from slack_sdk.web.async_client import AsyncWebClient
 
-from orchestrator.models.task import GitProvider, Task, TaskCreate, TaskMode, TaskPriority, TaskSource
+from orchestrator.models.task import GitProvider, Task, TaskMode, TaskPriority, TaskSource
 from orchestrator.services.config import get_settings
 from orchestrator.services.intent import classify_intent
 
